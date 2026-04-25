@@ -30,7 +30,7 @@ export default async function ProfilePage() {
           <p className="text-sm text-slate-600">Your shaper profile</p>
         </div>
         <Link
-          href="/test"
+          href="/"
           className="text-sm px-3 py-2 bg-amber-700 text-white rounded"
         >
           Make a new world

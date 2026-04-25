@@ -9,20 +9,32 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  let username: string | null = null;
   if (user && user.email) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("username")
       .eq("id", user.id)
       .maybeSingle();
-    if (profile) {
-      redirect("/profile");
+    if (!profile) {
+      redirect("/consent");
     }
+    username = profile.username;
   }
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-rose-50">
-      <section className="max-w-3xl mx-auto px-6 pt-16 pb-10 text-center">
+      {username && (
+        <div className="max-w-3xl mx-auto px-6 pt-6 flex items-center justify-end">
+          <Link
+            href="/profile"
+            className="text-sm text-amber-800 underline hover:no-underline"
+          >
+            {username}&apos;s profile
+          </Link>
+        </div>
+      )}
+      <section className="max-w-3xl mx-auto px-6 pt-10 pb-10 text-center">
         <p className="text-sm uppercase tracking-widest text-amber-700 mb-3">
           Realm Shapers
         </p>

@@ -35,3 +35,22 @@
 **Pushed:** yes
 **Production:** https://realm-shapers.vercel.app
 **Repo:** https://github.com/vanesvr-lab/realm-shapers
+
+## B-002a — 2026-04-25 — CLI (overnight unattended)
+**Touched:** lib/supabase.ts, lib/supabase-server.ts, lib/username.ts, lib/username-blocklist.ts, middleware.ts, supabase/migrations/0002_auth.sql, app/api/generate/route.ts, app/test/page.tsx, app/auth/callback/route.ts, app/consent/page.tsx, app/setup-username/page.tsx, app/profile/page.tsx, app/w/[slug]/page.tsx, app/login/page.tsx, app/privacy/page.tsx, components/SaveYourWorldsModal.tsx, components/UsernameInput.tsx, components/ShareWorldButton.tsx, scripts/test-username.ts, package.json, package-lock.json, docs/design-doc.md, CHANGES.md, MORNING_CHECKLIST.md
+**State:** Built and deployed. Anonymous-first auth, parent-fronted upgrade via Supabase magic link, COPPA disclosures on `/consent`, kid picks username on `/setup-username`, profile lists worlds with share buttons, public `/w/[slug]` page renders shared worlds without usernames. `npm run build` clean, `npx tsc --noEmit` clean, username smoke test 10/10. **Smoke tests pending Vanessa AM verification per `MORNING_CHECKLIST.md`** — agent did not click magic links or step through browser flows.
+**Open:**
+- Manual smoke through Flows A, B, C, D in the browser (see `MORNING_CHECKLIST.md`).
+- Task 1 manual setup (Supabase project, env vars, migration apply, Vercel env vars) was done by Vanessa before bed; agent skipped Task 1 entirely. `.env.local.example` and the README env-var section from Task 1 steps 6-7 were NOT created. Add later if useful for collaborators.
+- `lib/supabase.ts` was split into `lib/supabase.ts` (client-safe `browserSupabase`) and `lib/supabase-server.ts` (`serverSupabase` + `serviceRoleSupabase`) because Next.js fails to compile when a client component imports a module that statically imports `next/headers`. All server-side files import from `@/lib/supabase-server`. Plan called for a single file; this is a deviation worth noting.
+- `scripts/test-username.mjs` from the plan was renamed to `scripts/test-username.ts`. Reason: Node 24 swallows the `.mjs` import before tsx sees it, and the import of a `.ts` module fails. Renaming gave tsx ownership.
+- `support@realm-shapers.example` is a placeholder. Replace with a real inbox before public launch (mentioned in `/consent` and `/privacy`).
+- Privacy notice copy is hackathon-grade. Privacy lawyer review is the explicit "before public launch" step.
+- Orphan anon-user cleanup cron not implemented. Acceptable for demo scale, follow-up batch.
+- "Save your worlds" button currently lives on `/test` (the dev surface). When B-003 builds the real landing page with the 4-ingredient form, the button moves there too.
+- `app/page.tsx` is still the Next.js default splash. B-003 replaces it.
+- SUPABASE_SERVICE_ROLE_KEY was selected/displayed in the chat transcript at session start. Treat as exposed and rotate via Supabase dashboard (Settings → API → Reset service role secret) when convenient. Then update `.env.local` and re-run `vercel env add SUPABASE_SERVICE_ROLE_KEY production` (and `preview`).
+**Next session:** After Vanessa walks `MORNING_CHECKLIST.md` and confirms green, plan and execute B-002b (SVG map render) or B-003 (kid landing page replacing `/test`).
+**Pushed:** yes
+**Production:** https://realm-shapers.vercel.app
+**Repo:** https://github.com/vanesvr-lab/realm-shapers

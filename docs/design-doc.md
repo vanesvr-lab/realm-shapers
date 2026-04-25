@@ -166,3 +166,16 @@ Two-minute video for hackathon submission must show:
 5. (1:50-2:00) Closing: "Designed by an 11-year-old brother and sister"
 
 The kid-design story is a strong differentiator. Lean into it.
+
+---
+
+## Auth and Identity
+
+Realm Shapers uses **parent-fronted Supabase Auth**, designed to be COPPA,
+GDPR-K, and UK Children's Code compliant from day one. The kid plays
+anonymously by default; to save worlds across devices, a parent or guardian
+provides email-based consent via magic link. The full design rationale,
+regulatory analysis, data model, user flows, and edge cases are in:
+
+- [B-002a Auth Design Spec](superpowers/specs/2026-04-25-b-002a-auth-design.md)
+- [B-002a Auth Implementation Plan](superpowers/plans/2026-04-25-b-002a-auth.md)

@@ -10,6 +10,7 @@
 - No filler ("certainly," "absolutely," "great question"). Plain language only.
 - Ask before installing new libraries, refactoring working code, or expanding scope.
 - If uncertain about product/UX/kid-facing copy, ask. Do not guess.
+- Implementation plans (`docs/superpowers/plans/*.md`) should be brief and file-level, not full copy-paste code blocks. The CLI agent executing the plan can write the actual code. List files, responsibilities, smoke tests, and commit points. Exception: include verbatim copy when it is content the user reviews (e.g., COPPA disclosures, marketing copy).
 
 ## What This Is
 

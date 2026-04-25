@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateWorld, WorldIngredients } from "@/lib/claude";
 import { serverSupabase } from "@/lib/supabase-server";
+import { ensureAudioForWorld } from "@/lib/world-audio";
 
 export async function POST(req: NextRequest) {
   const supabase = serverSupabase();
@@ -28,21 +29,31 @@ export async function POST(req: NextRequest) {
         title: world.title,
         narration: world.narration,
         ingredients: body,
+        map: world.map,
+        audio_prompt: world.audio_prompt,
       })
       .select("id, share_slug")
       .single();
 
-    if (error) {
+    if (error || !row) {
       return NextResponse.json(
-        { error: "Failed to save world: " + error.message },
+        { error: "Failed to save world: " + (error?.message ?? "unknown") },
         { status: 500 }
       );
     }
+
+    const audioUrl = await ensureAudioForWorld(row.id, world.audio_prompt).catch(
+      (err) => {
+        console.error("audio generation failed", err);
+        return null;
+      }
+    );
 
     return NextResponse.json({
       ...world,
       id: row.id,
       share_slug: row.share_slug,
+      audio_url: audioUrl,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

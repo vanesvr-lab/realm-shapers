@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { browserSupabase } from "@/lib/supabase";
+import { SaveYourWorldsModal } from "@/components/SaveYourWorldsModal";
 
 const supabase = browserSupabase();
 
@@ -17,6 +18,7 @@ export default function TestPage() {
   const [result, setResult] = useState<GeneratedRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showSave, setShowSave] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,20 +86,30 @@ export default function TestPage() {
       <p className="text-sm text-slate-600 mb-4">
         {authReady ? "Anonymous session ready." : "Setting up your session..."}
       </p>
-      <button
-        onClick={handleGenerate}
-        disabled={loading || !authReady}
-        className="px-4 py-2 bg-amber-700 text-white rounded disabled:opacity-50"
-      >
-        {loading ? "Generating..." : "Generate Test World"}
-      </button>
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={handleGenerate}
+          disabled={loading || !authReady}
+          className="px-4 py-2 bg-amber-700 text-white rounded disabled:opacity-50"
+        >
+          {loading ? "Generating..." : "Generate Test World"}
+        </button>
+        {result && (
+          <button
+            onClick={() => setShowSave(true)}
+            className="px-4 py-2 bg-emerald-700 text-white rounded"
+          >
+            Save your worlds
+          </button>
+        )}
+      </div>
       {error && (
-        <pre className="mt-6 p-4 bg-red-50 text-red-700 rounded text-sm whitespace-pre-wrap">
+        <pre className="mt-2 p-4 bg-red-50 text-red-700 rounded text-sm whitespace-pre-wrap">
           {error}
         </pre>
       )}
       {result && (
-        <div className="mt-6 space-y-2">
+        <div className="mt-2 space-y-2">
           <pre className="p-4 bg-slate-100 rounded text-sm whitespace-pre-wrap">
             {JSON.stringify(result, null, 2)}
           </pre>
@@ -107,6 +119,7 @@ export default function TestPage() {
           </p>
         </div>
       )}
+      <SaveYourWorldsModal open={showSave} onClose={() => setShowSave(false)} />
     </main>
   );
 }

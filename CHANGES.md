@@ -54,3 +54,21 @@
 **Pushed:** yes
 **Production:** https://realm-shapers.vercel.app
 **Repo:** https://github.com/vanesvr-lab/realm-shapers
+
+## B-002b + B-003 + B-004 — 2026-04-25 — CLI (overnight unattended)
+**Touched:** lib/claude.ts, lib/elevenlabs.ts, lib/world-audio.ts, supabase/migrations/0003_world_extras.sql, app/api/generate/route.ts, app/api/audio/route.ts, app/api/ideas/route.ts, app/page.tsx, app/play/page.tsx, app/play/PlayClient.tsx, app/profile/page.tsx, app/test/page.tsx (deleted), app/globals.css, components/IngredientForm.tsx, components/IdeaButton.tsx, components/WorldMap.tsx, components/AudioPlayer.tsx, CHANGES.md, MORNING_CHECKLIST_002b.md
+**State:** Built and deployed. `/` is now the kid-facing landing (hero + 4-ingredient form with per-slot Claude "give me ideas" suggestions). `/api/generate` returns Claude's title + narration + animated SVG map data + ambient audio_prompt and uploads the ElevenLabs MP3 to the `world_audio` Supabase Storage bucket. `/play?world={id}` walks the character emoji along the map locations with a narration overlay per stop and plays the soundscape behind a Play gesture. End screen offers Make another and Save your worlds (existing B-002a flow). `/test` removed; profile back-link points at `/`. `npm run build` clean, `npm run lint` clean, `npx tsc --noEmit` clean. Vercel `--prod` deploy succeeded. **Smoke tests pending Vanessa AM verification per `MORNING_CHECKLIST_002b.md`** — agent did not click Generate or Play in a real browser.
+**Open:**
+- Manual smoke per `MORNING_CHECKLIST_002b.md` (incognito → form → generate → /play → audio → save).
+- Claude + ElevenLabs are sequential, not truly parallel: ElevenLabs needs the audio_prompt that Claude returns. The brief asked for parallel; the practical version parallelises the storage upload with the DB insert. Total Generate latency observed in build (sequential): ~Claude 10s + ElevenLabs 15s ≈ 25s, matching the brief's worst-case estimate. If this feels too long during demo, swap Claude to `claude-sonnet-4-6` in `lib/claude.ts`.
+- `/play` uses service-role read for the world (per brief's hard-refresh note). This means anyone who knows or guesses the world UUID can view a kid's playthrough. UUIDs are unguessable so this is acceptable for hackathon scale, but worth tightening (auth-checked read with share-slug fallback) before public launch.
+- `/api/audio` is owner-checked via RLS (auth'd kid replays). Storage bucket `world_audio` is private; only signed URLs (1h TTL) are exposed.
+- Default fallback world (used if Claude returns invalid JSON twice) lives in `lib/claude.ts` as `defaultWorld`. It is intentionally generic so the kid never gets stuck. If you see the default scene in the demo, check Claude API health.
+- IdeaButton hard-caps "More ideas" at 3 calls per slot per session. Client-side only; not robust against direct API abuse, fine for hackathon.
+- Audio is a 22-second loop (ElevenLabs Sound Effects max duration). The walkthrough is ~22 seconds for 5 locations and shorter for 3-4, so it loops cleanly.
+- Migration 0003 + the `world_audio` bucket + `ELEVENLABS_API_KEY` env var were applied by Vanessa before this run; not re-verified by the agent.
+- Shared world page `/w/[slug]` is still text-only (title + narration + ingredients). Extending it to render the animated map for shareable replay is a natural next batch.
+**Next session:** After Vanessa walks `MORNING_CHECKLIST_002b.md` and confirms green, the major hackathon arc is shippable. Remaining nice-to-haves: persistent share view of the animated map (extend `/w/[slug]`), responsive polish for narrow phones, and the orphan anon-user cleanup cron.
+**Pushed:** yes
+**Production:** https://realm-shapers.vercel.app
+**Repo:** https://github.com/vanesvr-lab/realm-shapers

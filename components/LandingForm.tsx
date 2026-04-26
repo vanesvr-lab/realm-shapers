@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { browserSupabase } from "@/lib/supabase";
 import { IdeaButton } from "@/components/IdeaButton";
+import { StarTapGame } from "@/components/StarTapGame";
 import type { IngredientSlot, WorldIngredients } from "@/lib/claude";
 
 const supabase = browserSupabase();
@@ -137,9 +138,12 @@ export function LandingForm() {
         {loading ? "Shaping your realm..." : authReady ? "Shape my realm" : "Getting ready..."}
       </button>
       {loading && (
-        <p className="text-sm text-center text-slate-600">
-          The Oracle is weaving 5 scenes. This usually takes about 10 seconds.
-        </p>
+        <div className="space-y-3">
+          <p className="text-sm text-center text-slate-600">
+            The Oracle is weaving 5 scenes. This usually takes about 10 seconds.
+          </p>
+          <StarTapGame />
+        </div>
       )}
     </form>
   );

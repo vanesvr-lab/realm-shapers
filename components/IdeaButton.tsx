@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { WorldIngredients, IngredientSlot } from "@/lib/claude";
+import { INGREDIENT_SEEDS } from "@/lib/ingredient-seeds";
 
 const MAX_CALLS = 3;
 
@@ -23,15 +24,15 @@ export function IdeaButton({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [oracleSuggestions, setOracleSuggestions] = useState<string[]>([]);
   const [callCount, setCallCount] = useState(0);
 
+  const seeds = INGREDIENT_SEEDS[slot];
   const limitReached = callCount >= MAX_CALLS;
 
-  async function fetchIdeas() {
+  async function fetchOracleIdeas() {
     setLoading(true);
     setError(null);
-    setSuggestions([]);
     try {
       const res = await fetch("/api/ideas", {
         method: "POST",
@@ -42,7 +43,8 @@ export function IdeaButton({
       if (!res.ok) {
         setError(data.error ?? "Could not get ideas");
       } else {
-        setSuggestions(data.suggestions ?? []);
+        const fresh: string[] = data.suggestions ?? [];
+        setOracleSuggestions((prev) => [...prev, ...fresh]);
         setCallCount((c) => c + 1);
       }
     } catch (err) {
@@ -54,9 +56,6 @@ export function IdeaButton({
 
   function openModal() {
     setOpen(true);
-    if (suggestions.length === 0 && !loading) {
-      fetchIdeas();
-    }
   }
 
   function close() {
@@ -79,7 +78,7 @@ export function IdeaButton({
           onClick={close}
         >
           <div
-            className="bg-white rounded-2xl p-6 max-w-md w-full"
+            className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[85vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-bold mb-1">
@@ -88,36 +87,47 @@ export function IdeaButton({
             <p className="text-sm text-slate-600 mb-4">
               Tap one to use it, or close and type your own.
             </p>
-            {loading && (
-              <p className="text-sm text-slate-500">Thinking up ideas...</p>
-            )}
+            <ul className="space-y-2 mb-4">
+              {seeds.map((s, i) => (
+                <li key={`seed-${i}`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onPick(s);
+                      close();
+                    }}
+                    className="w-full text-left p-3 rounded-lg border border-amber-200 hover:bg-amber-50"
+                  >
+                    {s}
+                  </button>
+                </li>
+              ))}
+              {oracleSuggestions.map((s, i) => (
+                <li key={`oracle-${i}`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onPick(s);
+                      close();
+                    }}
+                    className="w-full text-left p-3 rounded-lg border border-purple-200 bg-purple-50/40 hover:bg-purple-50"
+                  >
+                    <span className="mr-2">🔮</span>
+                    {s}
+                  </button>
+                </li>
+              ))}
+            </ul>
             {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
-            {!loading && suggestions.length > 0 && (
-              <ul className="space-y-2 mb-4">
-                {suggestions.map((s, i) => (
-                  <li key={i}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onPick(s);
-                        close();
-                      }}
-                      className="w-full text-left p-3 rounded-lg border border-amber-200 hover:bg-amber-50"
-                    >
-                      {s}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="flex gap-2">
-              {!limitReached && !loading && (
+            <div className="flex flex-wrap gap-2">
+              {!limitReached && (
                 <button
                   type="button"
-                  onClick={fetchIdeas}
-                  className="px-3 py-2 text-sm rounded bg-amber-100 text-amber-900 hover:bg-amber-200"
+                  onClick={fetchOracleIdeas}
+                  disabled={loading}
+                  className="px-3 py-2 text-sm rounded bg-purple-100 text-purple-900 hover:bg-purple-200 disabled:opacity-60"
                 >
-                  More ideas
+                  {loading ? "The Oracle is thinking..." : "🔮 Show me more from the Oracle"}
                 </button>
               )}
               <button
@@ -130,8 +140,7 @@ export function IdeaButton({
             </div>
             {limitReached && (
               <p className="text-xs text-slate-500 mt-3">
-                You&apos;ve used your idea boosts for this slot. Type your own to
-                keep going.
+                You&apos;ve used your Oracle boosts for this slot. Pick a seed above or type your own.
               </p>
             )}
           </div>

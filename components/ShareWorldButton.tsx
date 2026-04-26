@@ -16,6 +16,13 @@ export function ShareWorldButton({ shareSlug }: { shareSlug: string }) {
     } catch {
       window.prompt("Copy this link:", url);
     }
+    void fetch("/api/check-achievements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: "world_shared" }),
+    }).catch(() => {
+      // non-blocking
+    });
   }
 
   return (

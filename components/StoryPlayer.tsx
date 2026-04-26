@@ -1,42 +1,104 @@
 "use client";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ASSETS_BY_ID,
   assetUrlById,
 } from "@/lib/asset-library";
-import type { StoryTree } from "@/lib/claude";
+import type { StoryScene, StoryTree } from "@/lib/claude";
 import { AudioPlayer } from "@/components/AudioPlayer";
-import { InteractiveProp } from "@/components/InteractiveProp";
+import { Interactable } from "@/components/Interactable";
+import { InventoryBar } from "@/components/InventoryBar";
+import { OracleSpeaks } from "@/components/OracleSpeaks";
+import { speakOracle } from "@/lib/oracle-bus";
+
+type CompletionPayload = {
+  endingScene: StoryScene;
+  scenesVisited: string[];
+  pickupsCollected: string[];
+  totalPickups: number;
+  secretDiscovered: boolean;
+};
+
+const TUTORIAL_KEY = "realm-shapers:saw-tutorial";
+
+const CHOICE_POSITIONS: React.CSSProperties[] = [
+  { left: "12%", bottom: "22%" },
+  { right: "12%", bottom: "22%" },
+  { left: "50%", bottom: "14%", transform: "translateX(-50%)" },
+];
+
+const PICKUP_POSITIONS: React.CSSProperties[] = [
+  { left: "22%", bottom: "48%" },
+  { right: "22%", bottom: "48%" },
+];
 
 export function StoryPlayer({
   worldId,
   story,
   onExit,
-  onEnd,
+  onComplete,
 }: {
   worldId: string;
   story: StoryTree;
   onExit: () => void;
-  onEnd?: () => void;
+  onComplete?: (payload: CompletionPayload) => void;
 }) {
   const [sceneId, setSceneId] = useState<string>(story.starting_scene_id);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [audioLoading, setAudioLoading] = useState(false);
-  const [audioError, setAudioError] = useState<string | null>(null);
-  const audioCache = useStateRef<Record<string, string>>({});
+  const [inventory, setInventory] = useState<string[]>([]);
+  const [visited, setVisited] = useState<Set<string>>(() => new Set([story.starting_scene_id]));
+  const [pickedPerScene, setPickedPerScene] = useState<Record<string, string[]>>({});
+  const [secretDiscovered, setSecretDiscovered] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
-  const scene = story.scenes.find((s) => s.id === sceneId) ?? story.scenes[0];
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const audioCache = useRef<Record<string, string>>({});
+  const completedRef = useRef(false);
+
+  const sceneById = useMemo(() => {
+    const m = new Map<string, StoryScene>();
+    for (const s of story.scenes) m.set(s.id, s);
+    if (story.secret_ending) m.set(story.secret_ending.id, story.secret_ending);
+    return m;
+  }, [story]);
+
+  const scene = sceneById.get(sceneId) ?? story.scenes[0];
   const isEnding = scene.choices.length === 0;
   const charUrl = assetUrlById(story.default_character_id);
   const charMeta = ASSETS_BY_ID[story.default_character_id];
   const bgUrl = assetUrlById(scene.background_id);
 
-  useEffect(() => {
-    if (isEnding) onEnd?.();
-  }, [isEnding, sceneId, onEnd]);
+  const totalPickups = useMemo(() => {
+    const all = new Set<string>();
+    for (const s of story.scenes) for (const p of s.pickups ?? []) all.add(p);
+    return all.size;
+  }, [story]);
 
+  const allPickupsCollected = totalPickups > 0 && inventory.length >= totalPickups;
+  const visitedAllScenes = visited.size >= story.scenes.length;
+  const secretEligible = !secretDiscovered && (visitedAllScenes || allPickupsCollected);
+
+  useEffect(() => {
+    try {
+      const saw = sessionStorage.getItem(TUTORIAL_KEY);
+      if (!saw) setShowTutorial(true);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const dismissTutorial = useCallback(() => {
+    setShowTutorial(false);
+    try {
+      sessionStorage.setItem(TUTORIAL_KEY, "1");
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Ambient scene audio (existing /api/audio with ElevenLabs Sound Effects).
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -45,9 +107,8 @@ export function StoryPlayer({
         setAudioUrl(cached);
         return;
       }
-      setAudioLoading(true);
-      setAudioError(null);
       setAudioUrl(null);
+      setAudioError(null);
       try {
         const res = await fetch("/api/audio", {
           method: "POST",
@@ -68,15 +129,108 @@ export function StoryPlayer({
         }
       } catch (err) {
         if (!cancelled) setAudioError(String(err));
-      } finally {
-        if (!cancelled) setAudioLoading(false);
       }
     }
     load();
     return () => {
       cancelled = true;
     };
-  }, [scene.id, scene.ambient_audio_prompt, worldId, audioCache]);
+  }, [scene.id, scene.ambient_audio_prompt, worldId]);
+
+  // Ending detection.
+  useEffect(() => {
+    if (!isEnding) return;
+    if (completedRef.current) return;
+
+    // Secret reroute: if we hit a normal ending while eligible and a secret
+    // exists, swap to secret_ending instead.
+    if (secretEligible && story.secret_ending && sceneId !== story.secret_ending.id) {
+      setSecretDiscovered(true);
+      setSceneId(story.secret_ending.id);
+      setVisited((v) => {
+        const next = new Set(v);
+        next.add(story.secret_ending!.id);
+        return next;
+      });
+      return;
+    }
+
+    completedRef.current = true;
+    const finalScene = sceneById.get(sceneId) ?? scene;
+    const visitedArr = Array.from(visited);
+    const pickupsArr = inventory;
+    const isOnSecret = !!story.secret_ending && sceneId === story.secret_ending.id;
+    speakOracle({
+      text: isOnSecret
+        ? "A hidden ending. The Oracle smiles. Few find this path."
+        : "And so this realm settles. Well shaped.",
+      kind: "completion",
+    });
+    onComplete?.({
+      endingScene: finalScene,
+      scenesVisited: visitedArr,
+      pickupsCollected: pickupsArr,
+      totalPickups,
+      secretDiscovered: secretDiscovered || isOnSecret,
+    });
+  }, [
+    isEnding,
+    secretEligible,
+    sceneId,
+    scene,
+    sceneById,
+    story.secret_ending,
+    visited,
+    inventory,
+    totalPickups,
+    secretDiscovered,
+    onComplete,
+  ]);
+
+  function visitScene(nextId: string) {
+    setSceneId(nextId);
+    setVisited((v) => {
+      if (v.has(nextId)) return v;
+      const next = new Set(v);
+      next.add(nextId);
+      return next;
+    });
+  }
+
+  function tryActivate(choiceId: string) {
+    const choice = scene.choices.find((c) => c.id === choiceId);
+    if (!choice) return;
+    const required = choice.requires ?? [];
+    const missing = required.filter((r) => !inventory.includes(r));
+    if (missing.length > 0) {
+      const names = missing
+        .map((id) => ASSETS_BY_ID[id]?.alt ?? id.replace(/_/g, " "))
+        .join(" and ");
+      speakOracle({
+        text: `Hmm, perhaps you need to find ${names} first.`,
+        kind: "hint",
+      });
+      return;
+    }
+    visitScene(choice.next_scene_id);
+  }
+
+  function pickup(propId: string) {
+    setInventory((inv) => (inv.includes(propId) ? inv : [...inv, propId]));
+    setPickedPerScene((map) => ({
+      ...map,
+      [scene.id]: Array.from(new Set([...(map[scene.id] ?? []), propId])),
+    }));
+    const meta = ASSETS_BY_ID[propId];
+    speakOracle({
+      text: meta ? `You collect the ${meta.alt.toLowerCase()}.` : "You collect it.",
+      kind: "discovery",
+    });
+  }
+
+  const remainingPickups = (scene.pickups ?? []).filter(
+    (p) => !(pickedPerScene[scene.id] ?? []).includes(p)
+  );
 
   return (
     <div className="fixed inset-0 z-40 bg-black flex flex-col">
@@ -101,7 +255,8 @@ export function StoryPlayer({
                 className="object-cover"
               />
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+
             {charUrl && charMeta && (
               <motion.div
                 key={`${scene.id}-char`}
@@ -111,10 +266,10 @@ export function StoryPlayer({
                 className="absolute"
                 style={{
                   left: "50%",
-                  bottom: "22%",
+                  bottom: "32%",
                   transform: "translateX(-50%)",
-                  width: "min(28vw, 220px)",
-                  height: "min(28vw, 220px)",
+                  width: "min(22vw, 180px)",
+                  height: "min(22vw, 180px)",
                 }}
               >
                 <Image
@@ -122,40 +277,109 @@ export function StoryPlayer({
                   alt={charMeta.alt}
                   fill
                   unoptimized
-                  sizes="220px"
+                  sizes="200px"
                   className="object-contain drop-shadow-2xl"
                 />
               </motion.div>
             )}
+
             {scene.default_props.map((propId, i) => {
               const url = assetUrlById(propId);
               const meta = ASSETS_BY_ID[propId];
               if (!url || !meta) return null;
-              const offsets = [
-                { left: "12%", bottom: "18%" },
-                { right: "12%", bottom: "16%" },
-                { left: "50%", bottom: "12%" },
+              const offsets: React.CSSProperties[] = [
+                { left: "8%", bottom: "10%" },
+                { right: "8%", bottom: "8%" },
+                { left: "50%", bottom: "5%", transform: "translateX(-50%)" },
               ];
               const pos = offsets[i] ?? offsets[0];
               return (
                 <motion.div
                   key={`${scene.id}-prop-${i}`}
-                  initial={{ opacity: 0, scale: 0.9 }}
+                  initial={{ opacity: 0, scale: 0.92 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.3 + i * 0.1, duration: 0.4 }}
-                  className="absolute"
-                  style={{ ...pos, width: "min(14vw, 110px)", height: "min(14vw, 110px)" }}
+                  transition={{ delay: 0.3 + i * 0.08, duration: 0.4 }}
+                  className="absolute pointer-events-none"
+                  style={{ ...pos, width: "min(11vw, 90px)", height: "min(11vw, 90px)" }}
                 >
-                  <InteractiveProp
-                    worldId={worldId}
-                    sceneId={scene.id}
-                    propId={propId}
+                  <Image
                     src={url}
                     alt={meta.alt}
+                    fill
+                    unoptimized
+                    sizes="90px"
+                    className="object-contain drop-shadow-lg opacity-95"
                   />
                 </motion.div>
               );
             })}
+
+            {/* Pickups: glowing collectables */}
+            {remainingPickups.map((propId, i) => {
+              const url = assetUrlById(propId);
+              const meta = ASSETS_BY_ID[propId];
+              if (!url || !meta) return null;
+              const pos = PICKUP_POSITIONS[i] ?? PICKUP_POSITIONS[0];
+              return (
+                <motion.button
+                  key={`${scene.id}-pickup-${propId}`}
+                  type="button"
+                  onClick={() => pickup(propId)}
+                  aria-label={`Pick up ${meta.alt}`}
+                  className="absolute pointer-events-auto focus:outline-none"
+                  style={{ ...pos, width: "min(13vw, 100px)", height: "min(13vw, 100px)" }}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{
+                    opacity: 1,
+                    scale: [1, 1.07, 1],
+                    filter: [
+                      "drop-shadow(0 0 6px rgba(255,235,150,0.65))",
+                      "drop-shadow(0 0 22px rgba(255,235,150,1))",
+                      "drop-shadow(0 0 6px rgba(255,235,150,0.65))",
+                    ],
+                  }}
+                  transition={{
+                    opacity: { duration: 0.4 },
+                    scale: { repeat: Infinity, duration: 2, ease: "easeInOut" },
+                    filter: { repeat: Infinity, duration: 2, ease: "easeInOut" },
+                  }}
+                >
+                  <Image
+                    src={url}
+                    alt={meta.alt}
+                    fill
+                    unoptimized
+                    sizes="100px"
+                    className="object-contain pointer-events-none"
+                  />
+                </motion.button>
+              );
+            })}
+
+            {/* Choices: clickable scene-advance interactables */}
+            {!isEnding &&
+              scene.choices.map((choice, i) => {
+                const required = choice.requires ?? [];
+                const missing = required.filter((r) => !inventory.includes(r));
+                const locked = missing.length > 0;
+                const hint = locked
+                  ? `Find ${missing
+                      .map((id) => ASSETS_BY_ID[id]?.alt ?? id)
+                      .join(" + ")} first`
+                  : undefined;
+                const pos = CHOICE_POSITIONS[i] ?? CHOICE_POSITIONS[0];
+                return (
+                  <Interactable
+                    key={`${scene.id}-choice-${choice.id}`}
+                    kind={choice.interactable_kind ?? "path"}
+                    label={choice.label}
+                    locked={locked}
+                    hint={hint}
+                    onActivate={() => tryActivate(choice.id)}
+                    positionStyle={pos}
+                  />
+                );
+              })}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -168,18 +392,16 @@ export function StoryPlayer({
         ✕ Exit
       </button>
 
-      <div className="absolute top-4 left-4 z-10">
+      <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 items-start">
         {audioUrl && (
           <div className="bg-white/90 rounded-lg px-3 py-2 shadow">
             <AudioPlayer src={audioUrl} playing onError={setAudioError} />
           </div>
         )}
-        {audioLoading && (
-          <p className="text-sm text-white/90 bg-black/50 rounded px-3 py-1">Loading sound...</p>
-        )}
         {audioError && !audioUrl && (
           <p className="text-xs text-amber-100 bg-black/50 rounded px-3 py-1">Sound unavailable</p>
         )}
+        <InventoryBar items={inventory} />
       </div>
 
       <div className="relative mt-auto p-4 sm:p-6 flex flex-col gap-4 max-w-3xl mx-auto w-full">
@@ -198,36 +420,48 @@ export function StoryPlayer({
         </AnimatePresence>
 
         {!isEnding ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {scene.choices.map((choice) => (
-              <button
-                key={choice.id}
-                type="button"
-                onClick={() => setSceneId(choice.next_scene_id)}
-                className="px-4 py-4 rounded-xl bg-amber-600 text-white font-bold text-base hover:bg-amber-700 transition shadow-lg"
-              >
-                {choice.label}
-              </button>
-            ))}
-          </div>
+          <p className="text-center text-amber-50/85 text-xs sm:text-sm">
+            Tap a glowing thing to explore. {scene.choices.length} ways forward.
+          </p>
         ) : (
-          <div className="bg-white/90 rounded-2xl p-4 text-center">
-            <p className="text-amber-900 font-bold text-lg mb-3">The End</p>
-            <button
-              type="button"
-              onClick={onExit}
-              className="px-5 py-3 rounded-xl bg-amber-700 text-white font-bold hover:bg-amber-800"
-            >
-              Edit my story
-            </button>
-          </div>
+          <p className="text-center text-amber-50/85 text-xs sm:text-sm">
+            The realm rests. The Oracle has prepared a card for you.
+          </p>
         )}
       </div>
+
+      {/* Oracle narrates each scene's first sentence on entry. */}
+      <OracleSpeaks
+        text={firstSentence(scene.narration)}
+        kind="scene_intro"
+        triggerKey={scene.id}
+        delayMs={400}
+      />
+
+      <AnimatePresence>
+        {showTutorial && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
+            className="absolute inset-x-0 top-[40%] z-20 flex justify-center pointer-events-none"
+          >
+            <button
+              type="button"
+              onClick={dismissTutorial}
+              className="pointer-events-auto rounded-2xl bg-black/75 text-amber-50 px-5 py-3 shadow-2xl border border-amber-200/40 text-base sm:text-lg font-semibold"
+            >
+              ✨ Click the glowing things to explore
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function useStateRef<T>(initial: T) {
-  const [ref] = useState({ current: initial });
-  return ref;
+function firstSentence(text: string): string {
+  const m = text.match(/^[^.!?]*[.!?]/);
+  return (m?.[0] ?? text).trim();
 }

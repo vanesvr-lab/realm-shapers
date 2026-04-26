@@ -92,7 +92,18 @@ export function LandingForm() {
         setLoading(false);
         return;
       }
-      router.push(`/play?world=${data.id}`);
+      // Stash any unlocked achievements so PlayClient can show them once it mounts.
+      try {
+        if (Array.isArray(data.unlocked) && data.unlocked.length > 0) {
+          sessionStorage.setItem(
+            "realm-shapers:pending-unlocks",
+            JSON.stringify(data.unlocked)
+          );
+        }
+      } catch {
+        // ignore
+      }
+      router.push(`/play?world=${data.id}&ceremony=1`);
     } catch (err) {
       setError(String(err));
       setLoading(false);

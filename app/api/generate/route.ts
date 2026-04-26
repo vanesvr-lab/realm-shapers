@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateWorld, WorldIngredients } from "@/lib/claude";
 import { serverSupabase } from "@/lib/supabase-server";
+import { evaluateUnlocks } from "@/lib/achievements";
 
 export async function POST(req: NextRequest) {
   const supabase = serverSupabase();
@@ -46,11 +47,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let unlocked: Awaited<ReturnType<typeof evaluateUnlocks>> = [];
+    try {
+      unlocked = await evaluateUnlocks(supabase, user.id, {
+        kind: "world_created",
+        ingredients: body,
+        story: world.story,
+      });
+    } catch (achErr) {
+      console.error("Achievement check failed (non-blocking):", achErr);
+    }
+
     return NextResponse.json({
       title: world.title,
       story: world.story,
       id: row.id,
       share_slug: row.share_slug,
+      unlocked,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { serverSupabase } from "@/lib/supabase-server";
 import { LandingForm } from "@/components/LandingForm";
 import { StylePicker } from "@/components/StylePicker";
+import { OracleSpeaks } from "@/components/OracleSpeaks";
 
 export default async function Home() {
   const supabase = serverSupabase();
@@ -26,6 +27,21 @@ export default async function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-rose-50">
       <StylePicker />
+      {username ? (
+        <OracleSpeaks
+          text={`Welcome back, ${username}. Ready to shape another realm?`}
+          kind="greet"
+          oncePerSessionKey={`landing-${username}`}
+          delayMs={900}
+        />
+      ) : (
+        <OracleSpeaks
+          text="Welcome, traveler. Pick four ingredients and I will shape a realm with you."
+          kind="greet"
+          oncePerSessionKey="landing-anon"
+          delayMs={1100}
+        />
+      )}
 
       {username && (
         <div className="max-w-3xl mx-auto px-6 pt-6 flex items-center justify-end gap-4">

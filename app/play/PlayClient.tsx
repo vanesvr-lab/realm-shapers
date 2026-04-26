@@ -1,24 +1,180 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
-import type { StoryTree } from "@/lib/claude";
+import { useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import type { StoryScene, StoryTree, WorldIngredients } from "@/lib/claude";
+import type { AchievementDef } from "@/lib/achievements-types";
+import type { RarityInputs } from "@/lib/rarity";
 import { SceneEditor } from "@/components/SceneEditor";
 import { StoryPlayer } from "@/components/StoryPlayer";
 import { SaveYourWorldsModal } from "@/components/SaveYourWorldsModal";
+import { AchievementToast } from "@/components/AchievementToast";
+
+const CeremonyReveal = dynamic(
+  () => import("@/components/CeremonyReveal").then((m) => m.CeremonyReveal),
+  { ssr: false }
+);
+
+const RealmCard = dynamic(
+  () => import("@/components/RealmCard").then((m) => m.RealmCard),
+  { ssr: false }
+);
+
+type EditorSnapshot = {
+  propsPlaced: number;
+  characterId: string;
+  backgroundId: string;
+};
 
 export function PlayClient({
   worldId,
   title,
   narration,
   story,
+  ingredients,
+  username,
+  initialUnlocked,
 }: {
   worldId: string;
   title: string;
   narration: string;
   story: StoryTree;
+  ingredients: WorldIngredients;
+  username: string | null;
+  initialUnlocked: AchievementDef[];
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<"edit" | "play">("edit");
   const [showSave, setShowSave] = useState(false);
+  const [showCeremony, setShowCeremony] = useState(searchParams.get("ceremony") === "1");
+  const [editorSnapshot, setEditorSnapshot] = useState<EditorSnapshot>({
+    propsPlaced: story.scenes[0]?.default_props.length ?? 0,
+    characterId: story.default_character_id,
+    backgroundId: story.scenes[0]?.background_id ?? "forest",
+  });
+  const [completion, setCompletion] = useState<{
+    endingScene: StoryScene;
+    rarityInputs: RarityInputs;
+  } | null>(null);
+  const [toastQueue, setToastQueue] = useState<AchievementDef[]>(initialUnlocked);
+
+  // Pull any unlocks the landing form stashed (from /api/generate response).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = sessionStorage.getItem("realm-shapers:pending-unlocks");
+      if (raw) {
+        const parsed = JSON.parse(raw) as AchievementDef[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setToastQueue((q) => [...q, ...parsed]);
+        }
+        sessionStorage.removeItem("realm-shapers:pending-unlocks");
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const dismissCeremony = useCallback(() => {
+    setShowCeremony(false);
+    // Clean the URL so refresh doesn't replay the ceremony.
+    if (typeof window !== "undefined" && window.location.search.includes("ceremony=1")) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("ceremony");
+      router.replace(url.pathname + (url.search ? url.search : ""), { scroll: false });
+    }
+  }, [router]);
+
+  const enqueueAchievements = useCallback((items: AchievementDef[]) => {
+    if (!items.length) return;
+    setToastQueue((q) => [...q, ...items]);
+  }, []);
+
+  const consumeToast = useCallback((id: string) => {
+    setToastQueue((q) => q.filter((a) => a.id !== id));
+  }, []);
+
+  async function checkAchievements(payload: unknown) {
+    try {
+      const res = await fetch("/api/check-achievements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.unlocked)) {
+        enqueueAchievements(data.unlocked as AchievementDef[]);
+      }
+    } catch {
+      // non-blocking
+    }
+  }
+
+  function handleEditorPlay(snapshot: EditorSnapshot) {
+    setEditorSnapshot(snapshot);
+    setMode("play");
+    if (snapshot.propsPlaced >= 5) {
+      void checkAchievements({ kind: "editor_props_placed", count: snapshot.propsPlaced });
+    }
+  }
+
+  function handlePlayerComplete(payload: {
+    endingScene: StoryScene;
+    scenesVisited: string[];
+    pickupsCollected: string[];
+    totalPickups: number;
+    secretDiscovered: boolean;
+  }) {
+    const rarityInputs: RarityInputs = {
+      propsPlaced: editorSnapshot.propsPlaced,
+      scenesVisited: payload.scenesVisited.length,
+      secretDiscovered: payload.secretDiscovered,
+      ingredients,
+    };
+    setCompletion({ endingScene: payload.endingScene, rarityInputs });
+
+    // Calculate rarity locally (server doesn't see ephemeral playthrough state).
+    void (async () => {
+      const { calculateRarity } = await import("@/lib/rarity");
+      const rarity = calculateRarity(rarityInputs);
+      void checkAchievements({
+        kind: "world_completed",
+        world_id: worldId,
+        rarity,
+        secret_discovered: payload.secretDiscovered,
+        pickups_collected: payload.pickupsCollected,
+        total_pickups: payload.totalPickups,
+        scenes_visited: payload.scenesVisited,
+      });
+    })();
+  }
+
+  function handleExitPlay() {
+    setMode("edit");
+    setCompletion(null);
+  }
+
+  // Fire greeting on first edit-mode mount when not coming straight from ceremony.
+  useEffect(() => {
+    if (showCeremony) return;
+    if (mode !== "edit") return;
+    let cancelled = false;
+    (async () => {
+      const { speakOracle } = await import("@/lib/oracle-bus");
+      if (cancelled) return;
+      speakOracle({
+        text: `Welcome to ${title}. Shape your scene, then play.`,
+        kind: "greet",
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-rose-50 p-3 sm:p-6">
@@ -55,7 +211,8 @@ export function PlayClient({
           worldId={worldId}
           story={story}
           initialNarration={narration || story.scenes[0].narration}
-          onPlay={() => setMode("play")}
+          onPlay={handleEditorPlay}
+          onSnapshotChange={setEditorSnapshot}
         />
       </div>
 
@@ -63,11 +220,65 @@ export function PlayClient({
         <StoryPlayer
           worldId={worldId}
           story={story}
-          onExit={() => setMode("edit")}
+          onExit={handleExitPlay}
+          onComplete={handlePlayerComplete}
         />
       )}
 
+      {showCeremony && (
+        <CeremonyReveal title={title} onDismiss={dismissCeremony} />
+      )}
+
+      <AnimatePresence>
+        {completion && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 overflow-y-auto"
+          >
+            <div className="flex flex-col items-center gap-5 my-8">
+              <p className="text-amber-100 text-sm uppercase tracking-widest">
+                Your realm card
+              </p>
+              <RealmCard
+                title={title}
+                story={story}
+                endingScene={completion.endingScene}
+                ingredients={ingredients}
+                rarityInputs={completion.rarityInputs}
+                username={username}
+              />
+              <div className="flex flex-wrap gap-2 justify-center">
+                <button
+                  type="button"
+                  onClick={handleExitPlay}
+                  className="px-4 py-3 rounded-xl bg-amber-100 text-amber-900 font-semibold hover:bg-amber-200"
+                >
+                  Edit my scene
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSave(true)}
+                  className="px-4 py-3 rounded-xl bg-amber-700 text-white font-bold hover:bg-amber-800"
+                >
+                  Save your worlds
+                </button>
+                <Link
+                  href="/"
+                  className="px-4 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700"
+                >
+                  Make another
+                </Link>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <SaveYourWorldsModal open={showSave} onClose={() => setShowSave(false)} />
+
+      <AchievementToast queue={toastQueue} onConsume={consumeToast} />
     </main>
   );
 }

@@ -1,11 +1,17 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { StoryTree } from "@/lib/claude";
 import { ASSETS_BY_ID } from "@/lib/asset-library";
 import { AssetPalette } from "@/components/AssetPalette";
 import { SceneCanvas } from "@/components/SceneCanvas";
 import type { PlacedProp } from "@/components/PropOverlay";
 import type { PlacedBubble } from "@/components/TextBubble";
+
+export type EditorSnapshot = {
+  propsPlaced: number;
+  characterId: string;
+  backgroundId: string;
+};
 
 const CANVAS_WIDTH = 800;
 const CANVAS_HEIGHT = 450;
@@ -28,11 +34,13 @@ export function SceneEditor({
   story,
   initialNarration,
   onPlay,
+  onSnapshotChange,
 }: {
   worldId: string;
   story: StoryTree;
   initialNarration: string;
-  onPlay: () => void;
+  onPlay: (snapshot: EditorSnapshot) => void;
+  onSnapshotChange?: (snapshot: EditorSnapshot) => void;
 }) {
   const startingScene = story.scenes.find((s) => s.id === story.starting_scene_id) ?? story.scenes[0];
 
@@ -100,6 +108,14 @@ export function SceneEditor({
     setProps((arr) => arr.map((p) => (p.uid === uid ? { ...p, z: minZ - 1 } : p)));
     setBubbles((arr) => arr.map((b) => (b.uid === uid ? { ...b, z: minZ - 1 } : b)));
   }
+
+  useEffect(() => {
+    onSnapshotChange?.({
+      propsPlaced: props.length,
+      characterId,
+      backgroundId,
+    });
+  }, [props.length, characterId, backgroundId, onSnapshotChange]);
 
   async function reNarrate() {
     setRewriteState({ loading: true, remaining: rewriteState.remaining, error: null });
@@ -218,7 +234,7 @@ export function SceneEditor({
 
           <button
             type="button"
-            onClick={onPlay}
+            onClick={() => onPlay({ propsPlaced: props.length, characterId, backgroundId })}
             className="mt-4 w-full px-5 py-4 rounded-xl bg-emerald-600 text-white font-bold text-lg shadow hover:bg-emerald-700"
           >
             ▶ Play your story

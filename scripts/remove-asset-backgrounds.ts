@@ -36,7 +36,7 @@ async function main() {
   // Skip backgrounds; only process characters + props.
   const target: AssetDef[] = ASSET_LIBRARY.filter((a) => {
     if (a.category === "backgrounds") return false;
-    if (args.only && !args.only.includes(a.id)) return false;
+    if (args.only && !args.only.has(a.id)) return false;
     if (args.category && a.category !== args.category) return false;
     return true;
   });

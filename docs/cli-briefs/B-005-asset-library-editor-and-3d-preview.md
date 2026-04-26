@@ -103,13 +103,29 @@ Replace the prompt to ask Claude for a 5-scene branching story tree using only v
 - `components/TextBubble.tsx`: kid-typeable text bubble that can be placed on the scene.
 - `components/StylePicker.tsx`: shown on first-ever visit per session, displays 5-10 sample backgrounds in different styles, kid taps to pick. Stored in localStorage. (For v1 we only have one style, so this is a stub that defaults to image2; UI ships for forward-compat.)
 
-### 3D teaser
+### 3D teaser (UPDATED 2026-04-26: Quaternius platformer kit)
 
-- `app/preview-3d/page.tsx`: full-bleed Three.js scene with react-three-fiber. Hardcoded "Forest Glade" with terrain, trees, a few interactive hotspots, and a Mixamo character with walk + idle animations. Arrow keys move character. Camera follows. Click hotspots → modal with placeholder narration. Banner at top: "Coming soon: full 3D worlds in v2."
-- Mixamo character: download a free rigged character (e.g., "Y Bot" or a more kid-friendly choice from Mixamo library) with idle, walk, and run animations baked in. Export as GLB.
-- Background music: one royalty-free MP3 looped.
-- Link from main demo: small "🎮 Try our 3D preview" button on `/play` and `/profile`.
-- Dependencies (NEW): `three`, `@react-three/fiber`, `@react-three/drei`. Ask before installing per CLAUDE.md (already implicit approval since it's in this brief).
+Vanessa already downloaded the Quaternius **Platformer Game Kit** (Dec 2021, CC0) and placed the entire pack under `public/3d/kit/`. Structure:
+- `public/3d/kit/character/glTF/` — rigged character with animations
+- `public/3d/kit/nature/glTF/` — trees, rocks, vegetation
+- `public/3d/kit/platforms/{3D,Single Height,Single Cube}/glTF/` — modular platform tiles
+- `public/3d/kit/platforms/2D/` — sprite assets, ignore for the 3D scene
+- 44 glTF files total, 39 MB pack
+
+**Build a tiny playable platformer level instead of just "character walks around":**
+- `app/preview-3d/page.tsx`: full-bleed Three.js scene with react-three-fiber.
+- Compose a small platformer level (~5-8 platforms arranged with gaps) using Modular Platforms 3D + Nature props (a few trees, rocks)
+- Place the Quaternius character on the starting platform
+- Controls: arrow keys move (with idle/walk animations from the character glTF if available; otherwise just translate the model)
+- Camera: third-person follow camera, slight orbit on mouse drag
+- 3 hotspots placed on platforms (e.g., glowing collectibles using simple Three.js geometry) → walking onto one triggers a modal with placeholder narration ("You found a sparkling gem! In v2, this will tie into your story.")
+- Banner at top: "Coming soon: full 3D worlds in v2"
+- Background music: one royalty-free MP3 looped at low volume (Vanessa drops `public/3d/forest-glade/ambient.mp3` if she gets it; otherwise ship without and add later)
+- Link from main demo: small "🎮 Try our 3D preview" button on `/play` and `/profile`
+
+**Animation handling:** Quaternius characters typically come with multiple animation clips embedded in the glTF. Use `useAnimations` from `@react-three/drei` to play idle on standstill and walk on arrow-key input. If the character glTF doesn't have animations baked in, fall back to a simple bounce/translate.
+
+**Dependencies (NEW):** `three`, `@react-three/fiber`, `@react-three/drei`. Approval implicit via this brief.
 
 ### Files to touch
 
@@ -211,8 +227,8 @@ New npm packages (need install, ask before adding):
 
 External one-time setup (Vanessa, before CLI starts):
 - Replicate account (https://replicate.com), API key, add to `.env.local` as `REPLICATE_API_TOKEN` (used only by `scripts/generate-assets.mjs`, never deployed)
-- Download Mixamo character GLB (https://mixamo.com, free Adobe account required) with idle + walk animations baked in. Save to `public/3d/forest-glade/character.glb`
-- Royalty-free forest ambient music MP3 (pixabay.com or freesound.org), save to `public/3d/forest-glade/ambient.mp3`
+- Quaternius Platformer Game Kit: DONE 2026-04-26, in place at `public/3d/kit/`
+- Royalty-free ambient music MP3 (pixabay.com or freesound.org), save to `public/3d/kit/ambient.mp3`. Optional, ship without if not available; can be added later.
 
 ## Definition of Done
 

@@ -13,6 +13,14 @@ import { InventoryBar } from "@/components/InventoryBar";
 import { OracleSpeaks } from "@/components/OracleSpeaks";
 import { speakOracle } from "@/lib/oracle-bus";
 
+export type GameplayEvent =
+  | { kind: "scene_visited"; world_id: string; scene_id: string; background_id: string }
+  | { kind: "pickup_collected"; world_id: string; scene_id: string; pickup_id: string }
+  | { kind: "world_completed"; world_id: string; character_id: string; secret_discovered: boolean }
+  | { kind: "side_quest_completed"; world_id: string; scene_id: string }
+  | { kind: "secret_ending_discovered"; world_id: string }
+  | { kind: "summon_used"; world_id: string; prop_id: string; matched: boolean };
+
 type CompletionPayload = {
   endingScene: StoryScene;
   scenesVisited: string[];
@@ -22,6 +30,7 @@ type CompletionPayload = {
 };
 
 const TUTORIAL_KEY = "realm-shapers:saw-tutorial";
+const SUMMONS_MAX = 5;
 
 const CHOICE_POSITIONS: React.CSSProperties[] = [
   { left: "12%", bottom: "22%" },
@@ -39,11 +48,13 @@ export function StoryPlayer({
   story,
   onExit,
   onComplete,
+  onEvent,
 }: {
   worldId: string;
   story: StoryTree;
   onExit: () => void;
   onComplete?: (payload: CompletionPayload) => void;
+  onEvent?: (event: GameplayEvent) => void;
 }) {
   const [sceneId, setSceneId] = useState<string>(story.starting_scene_id);
   const [inventory, setInventory] = useState<string[]>([]);
@@ -51,6 +62,9 @@ export function StoryPlayer({
   const [pickedPerScene, setPickedPerScene] = useState<Record<string, string[]>>({});
   const [secretDiscovered, setSecretDiscovered] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [summonsUsed, setSummonsUsed] = useState(0);
+  const [recentlySummonedId, setRecentlySummonedId] = useState<string | null>(null);
+  const sideQuestsFired = useRef<Set<string>>(new Set());
 
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
@@ -66,6 +80,7 @@ export function StoryPlayer({
 
   const scene = sceneById.get(sceneId) ?? story.scenes[0];
   const isEnding = scene.choices.length === 0;
+  const isSideQuestScene = scene.is_side_quest === true;
   const charUrl = assetUrlById(story.default_character_id);
   const charMeta = ASSETS_BY_ID[story.default_character_id];
   const bgUrl = assetUrlById(scene.background_id);
@@ -137,6 +152,37 @@ export function StoryPlayer({
     };
   }, [scene.id, scene.ambient_audio_prompt, worldId]);
 
+  // Fire scene_visited (and side_quest_completed for side quest scenes) on
+  // every scene change, including the initial mount.
+  useEffect(() => {
+    if (!onEvent) return;
+    onEvent({
+      kind: "scene_visited",
+      world_id: worldId,
+      scene_id: scene.id,
+      background_id: scene.background_id,
+    });
+    if (scene.is_side_quest && !sideQuestsFired.current.has(scene.id)) {
+      sideQuestsFired.current.add(scene.id);
+      onEvent({
+        kind: "side_quest_completed",
+        world_id: worldId,
+        scene_id: scene.id,
+      });
+      // Reward narration when arriving in a side quest scene with a pickup.
+      const reward = (scene.pickups ?? [])[0];
+      if (reward) {
+        const meta = ASSETS_BY_ID[reward];
+        const altLower = (meta?.alt ?? reward.replace(/_/g, " ")).toLowerCase();
+        speakOracle({
+          text: `You have earned the ${altLower}. The realm remembers.`,
+          kind: "discovery",
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene.id]);
+
   // Ending detection.
   useEffect(() => {
     if (!isEnding) return;
@@ -160,18 +206,33 @@ export function StoryPlayer({
     const visitedArr = Array.from(visited);
     const pickupsArr = inventory;
     const isOnSecret = !!story.secret_ending && sceneId === story.secret_ending.id;
+    const finalSecret = secretDiscovered || isOnSecret;
     speakOracle({
       text: isOnSecret
         ? "A hidden ending. The Oracle smiles. Few find this path."
         : "And so this realm settles. Well shaped.",
       kind: "completion",
     });
+    if (onEvent) {
+      if (finalSecret) {
+        onEvent({
+          kind: "secret_ending_discovered",
+          world_id: worldId,
+        });
+      }
+      onEvent({
+        kind: "world_completed",
+        world_id: worldId,
+        character_id: story.default_character_id,
+        secret_discovered: finalSecret,
+      });
+    }
     onComplete?.({
       endingScene: finalScene,
       scenesVisited: visitedArr,
       pickupsCollected: pickupsArr,
       totalPickups,
-      secretDiscovered: secretDiscovered || isOnSecret,
+      secretDiscovered: finalSecret,
     });
   }, [
     isEnding,
@@ -180,11 +241,14 @@ export function StoryPlayer({
     scene,
     sceneById,
     story.secret_ending,
+    story.default_character_id,
     visited,
     inventory,
     totalPickups,
     secretDiscovered,
     onComplete,
+    onEvent,
+    worldId,
   ]);
 
   function visitScene(nextId: string) {
@@ -225,6 +289,34 @@ export function StoryPlayer({
     speakOracle({
       text: meta ? `You collect the ${meta.alt.toLowerCase()}.` : "You collect it.",
       kind: "discovery",
+    });
+    onEvent?.({
+      kind: "pickup_collected",
+      world_id: worldId,
+      scene_id: scene.id,
+      pickup_id: propId,
+    });
+  }
+
+  function handleSummonGranted(propId: string) {
+    setInventory((inv) => (inv.includes(propId) ? inv : [...inv, propId]));
+    setSummonsUsed((n) => Math.min(SUMMONS_MAX, n + 1));
+    setRecentlySummonedId(propId);
+    setTimeout(() => setRecentlySummonedId((prev) => (prev === propId ? null : prev)), 1500);
+    onEvent?.({
+      kind: "summon_used",
+      world_id: worldId,
+      prop_id: propId,
+      matched: true,
+    });
+  }
+
+  function handleSummonDenied() {
+    onEvent?.({
+      kind: "summon_used",
+      world_id: worldId,
+      prop_id: "",
+      matched: false,
     });
   }
 
@@ -368,6 +460,8 @@ export function StoryPlayer({
                       .join(" + ")} first`
                   : undefined;
                 const pos = CHOICE_POSITIONS[i] ?? CHOICE_POSITIONS[0];
+                const dest = sceneById.get(choice.next_scene_id);
+                const leadsToSideQuest = dest?.is_side_quest === true;
                 return (
                   <Interactable
                     key={`${scene.id}-choice-${choice.id}`}
@@ -375,6 +469,7 @@ export function StoryPlayer({
                     label={choice.label}
                     locked={locked}
                     hint={hint}
+                    sideQuest={leadsToSideQuest}
                     onActivate={() => tryActivate(choice.id)}
                     positionStyle={pos}
                   />
@@ -401,7 +496,16 @@ export function StoryPlayer({
         {audioError && !audioUrl && (
           <p className="text-xs text-amber-100 bg-black/50 rounded px-3 py-1">Sound unavailable</p>
         )}
-        <InventoryBar items={inventory} />
+        <InventoryBar
+          items={inventory}
+          worldId={worldId}
+          sceneId={scene.id}
+          summonsUsed={summonsUsed}
+          summonsMax={SUMMONS_MAX}
+          recentlySummonedId={recentlySummonedId}
+          onSummonGranted={handleSummonGranted}
+          onSummonDenied={handleSummonDenied}
+        />
       </div>
 
       <div className="relative mt-auto p-4 sm:p-6 flex flex-col gap-4 max-w-3xl mx-auto w-full">
@@ -414,7 +518,17 @@ export function StoryPlayer({
             transition={{ duration: 0.4 }}
             className="bg-white/95 rounded-2xl shadow-xl p-4 sm:p-5"
           >
-            <h2 className="text-xl sm:text-2xl font-bold text-amber-900 mb-1">{scene.title}</h2>
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <h2 className="text-xl sm:text-2xl font-bold text-amber-900">{scene.title}</h2>
+              {isSideQuestScene && (
+                <span
+                  className="text-[10px] sm:text-xs uppercase tracking-widest font-bold rounded-full px-2 py-0.5 bg-gradient-to-r from-fuchsia-200 to-purple-200 text-purple-900 border border-fuchsia-300"
+                  aria-label="Side quest"
+                >
+                  ✨ side quest
+                </span>
+              )}
+            </div>
             <p className="text-base sm:text-lg text-slate-800 leading-relaxed">{scene.narration}</p>
           </motion.div>
         </AnimatePresence>

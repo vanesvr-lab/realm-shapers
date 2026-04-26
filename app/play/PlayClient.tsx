@@ -8,7 +8,7 @@ import type { StoryScene, StoryTree, WorldIngredients } from "@/lib/claude";
 import type { AchievementDef } from "@/lib/achievements-types";
 import type { RarityInputs } from "@/lib/rarity";
 import { SceneEditor } from "@/components/SceneEditor";
-import { StoryPlayer } from "@/components/StoryPlayer";
+import { StoryPlayer, type GameplayEvent } from "@/components/StoryPlayer";
 import { SaveYourWorldsModal } from "@/components/SaveYourWorldsModal";
 import { AchievementToast } from "@/components/AchievementToast";
 
@@ -97,28 +97,28 @@ export function PlayClient({
     setToastQueue((q) => q.filter((a) => a.id !== id));
   }, []);
 
-  async function checkAchievements(payload: unknown) {
-    try {
-      const res = await fetch("/api/check-achievements", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (res.ok && Array.isArray(data.unlocked)) {
-        enqueueAchievements(data.unlocked as AchievementDef[]);
+  const checkAchievements = useCallback(
+    async (event: GameplayEvent) => {
+      try {
+        const res = await fetch("/api/check-achievements", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(event),
+        });
+        const data = await res.json();
+        if (res.ok && Array.isArray(data.unlocked)) {
+          enqueueAchievements(data.unlocked as AchievementDef[]);
+        }
+      } catch {
+        // non-blocking
       }
-    } catch {
-      // non-blocking
-    }
-  }
+    },
+    [enqueueAchievements]
+  );
 
   function handleEditorPlay(snapshot: EditorSnapshot) {
     setEditorSnapshot(snapshot);
     setMode("play");
-    if (snapshot.propsPlaced >= 5) {
-      void checkAchievements({ kind: "editor_props_placed", count: snapshot.propsPlaced });
-    }
   }
 
   function handlePlayerComplete(payload: {
@@ -135,21 +135,6 @@ export function PlayClient({
       ingredients,
     };
     setCompletion({ endingScene: payload.endingScene, rarityInputs });
-
-    // Calculate rarity locally (server doesn't see ephemeral playthrough state).
-    void (async () => {
-      const { calculateRarity } = await import("@/lib/rarity");
-      const rarity = calculateRarity(rarityInputs);
-      void checkAchievements({
-        kind: "world_completed",
-        world_id: worldId,
-        rarity,
-        secret_discovered: payload.secretDiscovered,
-        pickups_collected: payload.pickupsCollected,
-        total_pickups: payload.totalPickups,
-        scenes_visited: payload.scenesVisited,
-      });
-    })();
   }
 
   function handleExitPlay() {
@@ -222,6 +207,7 @@ export function PlayClient({
           story={story}
           onExit={handleExitPlay}
           onComplete={handlePlayerComplete}
+          onEvent={checkAchievements}
         />
       )}
 

@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { StoryTree } from "@/lib/claude";
+import { BACKGROUND_IDS } from "@/lib/asset-library";
 import {
   ACHIEVEMENT_DEFS,
   ACHIEVEMENT_DEFS_BY_ID,
@@ -10,17 +10,21 @@ import {
 export { ACHIEVEMENT_DEFS, ACHIEVEMENT_DEFS_BY_ID };
 export type { AchievementDef };
 
+// Every CheckEvent corresponds to a real gameplay action. World creation is
+// intentionally NOT an event: the kid earns achievements by playing, not by
+// clicking Generate. See B-008 brief.
 export type CheckEvent =
-  | { kind: "world_created"; ingredients: { setting: string; character: string; goal: string; twist: string } | null; story: StoryTree | null }
-  | { kind: "world_completed"; world_id: string; rarity: Rarity; secret_discovered: boolean; pickups_collected: string[]; total_pickups: number; scenes_visited: string[] }
-  | { kind: "editor_props_placed"; count: number }
-  | { kind: "world_shared" };
+  | { kind: "scene_visited"; world_id: string; scene_id: string; background_id: string }
+  | { kind: "pickup_collected"; world_id: string; scene_id: string; pickup_id: string }
+  | { kind: "world_completed"; world_id: string; character_id: string; secret_discovered: boolean }
+  | { kind: "side_quest_completed"; world_id: string; scene_id: string }
+  | { kind: "secret_ending_discovered"; world_id: string }
+  | { kind: "summon_used"; world_id: string; prop_id: string; matched: boolean }
+  | { kind: "world_shared"; world_id: string };
 
-export type Rarity = "common" | "uncommon" | "rare" | "epic" | "legendary";
-
-type WorldRow = {
-  id: string;
-  map: StoryTree | null;
+type EventRow = {
+  kind: string;
+  payload: Record<string, unknown>;
 };
 
 async function fetchUnlocked(
@@ -34,34 +38,47 @@ async function fetchUnlocked(
   return new Set((data ?? []).map((r) => r.achievement_id as string));
 }
 
-async function fetchWorlds(
+async function logEvent(
   supabase: SupabaseClient,
-  userId: string
-): Promise<WorldRow[]> {
+  userId: string,
+  event: CheckEvent
+): Promise<void> {
+  const { error } = await supabase.from("gameplay_events").insert({
+    user_id: userId,
+    kind: event.kind,
+    payload: stripKind(event),
+  });
+  if (error) {
+    console.error("Failed to log gameplay event:", error.message);
+  }
+}
+
+function stripKind(event: CheckEvent): Record<string, unknown> {
+  const obj: Record<string, unknown> = { ...(event as unknown as Record<string, unknown>) };
+  delete obj.kind;
+  return obj;
+}
+
+async function fetchUserEvents(
+  supabase: SupabaseClient,
+  userId: string,
+  kinds: string[]
+): Promise<EventRow[]> {
   const { data } = await supabase
-    .from("worlds")
-    .select("id, map")
-    .eq("user_id", userId);
-  return (data ?? []) as WorldRow[];
+    .from("gameplay_events")
+    .select("kind, payload")
+    .eq("user_id", userId)
+    .in("kind", kinds);
+  return (data ?? []) as EventRow[];
 }
 
-function distinctCharacters(worlds: WorldRow[]): Set<string> {
-  const set = new Set<string>();
-  for (const w of worlds) {
-    if (w.map?.default_character_id) set.add(w.map.default_character_id);
+function distinctPayloadField(rows: EventRow[], field: string): Set<string> {
+  const out = new Set<string>();
+  for (const r of rows) {
+    const v = r.payload?.[field];
+    if (typeof v === "string" && v) out.add(v);
   }
-  return set;
-}
-
-function distinctBackgrounds(worlds: WorldRow[]): Set<string> {
-  const set = new Set<string>();
-  for (const w of worlds) {
-    if (!w.map?.scenes) continue;
-    for (const s of w.map.scenes) {
-      if (s.background_id) set.add(s.background_id);
-    }
-  }
-  return set;
+  return out;
 }
 
 export async function evaluateUnlocks(
@@ -69,6 +86,9 @@ export async function evaluateUnlocks(
   userId: string,
   event: CheckEvent
 ): Promise<AchievementDef[]> {
+  // Persist the event first so cumulative queries below see it.
+  await logEvent(supabase, userId, event);
+
   const already = await fetchUnlocked(supabase, userId);
   const newlyUnlocked: string[] = [];
 
@@ -78,47 +98,54 @@ export async function evaluateUnlocks(
     }
   }
 
-  if (event.kind === "world_created") {
-    const worlds = await fetchWorlds(supabase, userId);
-    const count = worlds.length;
-    tryUnlock("first_realm", count >= 1);
-    tryUnlock("three_realms", count >= 3);
-    tryUnlock("five_realms", count >= 5);
-    tryUnlock("ten_realms", count >= 10);
-
-    const chars = distinctCharacters(worlds);
-    tryUnlock("five_characters", chars.size >= 5);
-    tryUnlock("dragon_friend", chars.has("dragon"));
-    tryUnlock("wizard_friend", chars.has("wizard"));
-
-    const bgs = distinctBackgrounds(worlds);
-    tryUnlock("five_backgrounds", bgs.size >= 5);
-    tryUnlock("underwater_realm", bgs.has("underwater"));
-  } else if (event.kind === "world_completed") {
-    tryUnlock("rare_card", event.rarity === "rare" || event.rarity === "epic" || event.rarity === "legendary");
-    tryUnlock("epic_card", event.rarity === "epic" || event.rarity === "legendary");
-    tryUnlock("legendary_card", event.rarity === "legendary");
-    tryUnlock("secret_ending", event.secret_discovered);
-
-    if (event.secret_discovered) {
-      const { data: secrets } = await supabase
-        .from("worlds")
-        .select("id")
-        .eq("user_id", userId);
-      // Approximate count of distinct secret endings: every world creation
-      // includes a secret_ending field, so a reliable count requires logging
-      // discovery events. For MVP we treat each completed world that fired
-      // secret_discovered as one. Track separately if needed later.
-      void secrets;
+  if (event.kind === "scene_visited") {
+    tryUnlock("first_steps", true);
+    const rows = await fetchUserEvents(supabase, userId, ["scene_visited"]);
+    const distinctScenes = new Set<string>();
+    const distinctBackgrounds = new Set<string>();
+    for (const r of rows) {
+      const sid = r.payload?.scene_id;
+      const wid = r.payload?.world_id;
+      if (typeof sid === "string" && typeof wid === "string") {
+        distinctScenes.add(`${wid}:${sid}`);
+      }
+      const bg = r.payload?.background_id;
+      if (typeof bg === "string") distinctBackgrounds.add(bg);
     }
-
-    tryUnlock("visit_all_scenes", event.scenes_visited.length >= 5);
-    tryUnlock(
-      "all_pickups",
-      event.total_pickups > 0 && event.pickups_collected.length >= event.total_pickups
-    );
-  } else if (event.kind === "editor_props_placed") {
-    tryUnlock("heavy_editor", event.count >= 5);
+    tryUnlock("realm_walker", distinctScenes.size >= 10);
+    tryUnlock("world_wanderer", coversAllBackgrounds(distinctBackgrounds));
+  } else if (event.kind === "pickup_collected") {
+    const rows = await fetchUserEvents(supabase, userId, ["pickup_collected"]);
+    const distinctPickups = distinctPayloadField(rows, "pickup_id");
+    tryUnlock("treasure_hunter", distinctPickups.size >= 10);
+  } else if (event.kind === "world_completed") {
+    tryUnlock("story_finisher", true);
+    const rows = await fetchUserEvents(supabase, userId, ["world_completed"]);
+    const distinctWorlds = distinctPayloadField(rows, "world_id");
+    const distinctCharacters = distinctPayloadField(rows, "character_id");
+    tryUnlock("five_worlds_strong", distinctWorlds.size >= 5);
+    tryUnlock("all_heroes_tried", distinctCharacters.size >= 10);
+  } else if (event.kind === "side_quest_completed") {
+    tryUnlock("side_quester", true);
+  } else if (event.kind === "secret_ending_discovered") {
+    tryUnlock("secret_keeper", true);
+    const rows = await fetchUserEvents(supabase, userId, ["secret_ending_discovered"]);
+    const distinctWorlds = distinctPayloadField(rows, "world_id");
+    tryUnlock("mystery_master", distinctWorlds.size >= 5);
+  } else if (event.kind === "summon_used") {
+    if (event.matched) {
+      tryUnlock("summoner", true);
+      const rows = await fetchUserEvents(supabase, userId, ["summon_used"]);
+      const distinctProps = new Set<string>();
+      for (const r of rows) {
+        const matched = r.payload?.matched;
+        const propId = r.payload?.prop_id;
+        if (matched === true && typeof propId === "string") {
+          distinctProps.add(propId);
+        }
+      }
+      tryUnlock("master_summoner", distinctProps.size >= 10);
+    }
   } else if (event.kind === "world_shared") {
     tryUnlock("share_realm", true);
   }
@@ -136,16 +163,11 @@ export async function evaluateUnlocks(
     .filter((d): d is AchievementDef => Boolean(d));
 }
 
-export async function countSecretsDiscovered(
-  supabase: SupabaseClient,
-  userId: string
-): Promise<number> {
-  const { data } = await supabase
-    .from("user_achievements")
-    .select("achievement_id")
-    .eq("user_id", userId)
-    .in("achievement_id", ["secret_ending", "three_secrets"]);
-  return (data ?? []).filter((r) => r.achievement_id === "secret_ending").length;
+function coversAllBackgrounds(seen: Set<string>): boolean {
+  for (const id of BACKGROUND_IDS) {
+    if (!seen.has(id)) return false;
+  }
+  return true;
 }
 
 export async function fetchUnlockedIds(
@@ -157,4 +179,43 @@ export async function fetchUnlockedIds(
     .select("achievement_id")
     .eq("user_id", userId);
   return (data ?? []).map((r) => r.achievement_id as string);
+}
+
+export async function countSideQuestsCompleted(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<number> {
+  const { data } = await supabase
+    .from("gameplay_events")
+    .select("payload")
+    .eq("user_id", userId)
+    .eq("kind", "side_quest_completed");
+  const seen = new Set<string>();
+  for (const r of data ?? []) {
+    const payload = (r as { payload: Record<string, unknown> | null }).payload ?? {};
+    const wid = payload.world_id;
+    const sid = payload.scene_id;
+    if (typeof wid === "string" && typeof sid === "string") {
+      seen.add(`${wid}:${sid}`);
+    }
+  }
+  return seen.size;
+}
+
+export async function countSecretsDiscovered(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<number> {
+  const { data } = await supabase
+    .from("gameplay_events")
+    .select("payload")
+    .eq("user_id", userId)
+    .eq("kind", "secret_ending_discovered");
+  const seen = new Set<string>();
+  for (const r of data ?? []) {
+    const payload = (r as { payload: Record<string, unknown> | null }).payload ?? {};
+    const wid = payload.world_id;
+    if (typeof wid === "string") seen.add(wid);
+  }
+  return seen.size;
 }

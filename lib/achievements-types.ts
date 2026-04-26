@@ -1,32 +1,37 @@
 // Client-safe types and definitions mirrored from lib/achievements.ts so that
 // React components can import them without dragging in server-only code.
 
+export type AchievementTrigger =
+  | "scene_visited"
+  | "pickup_collected"
+  | "world_completed"
+  | "side_quest_completed"
+  | "secret_ending_discovered"
+  | "summon_used"
+  | "world_shared";
+
 export type AchievementDef = {
   id: string;
   name: string;
   description: string;
   icon: string;
+  trigger: AchievementTrigger;
 };
 
 export const ACHIEVEMENT_DEFS: AchievementDef[] = [
-  { id: "first_realm", name: "First Realm", description: "Shape your very first realm.", icon: "🌟" },
-  { id: "three_realms", name: "Realm Builder", description: "Shape 3 realms.", icon: "📚" },
-  { id: "five_realms", name: "Realm Collector", description: "Shape 5 realms.", icon: "🗺️" },
-  { id: "ten_realms", name: "Master Shaper", description: "Shape 10 realms.", icon: "🏆" },
-  { id: "five_backgrounds", name: "World Wanderer", description: "Use 5 different backgrounds.", icon: "🏞️" },
-  { id: "five_characters", name: "Cast of Friends", description: "Use 5 different characters.", icon: "🎭" },
-  { id: "secret_ending", name: "Secret Keeper", description: "Discover a hidden ending.", icon: "🔮" },
-  { id: "three_secrets", name: "Mystery Hunter", description: "Discover 3 secret endings.", icon: "🪐" },
-  { id: "rare_card", name: "Rare Find", description: "Earn a Rare card.", icon: "💜" },
-  { id: "epic_card", name: "Epic Tale", description: "Earn an Epic card.", icon: "💎" },
-  { id: "legendary_card", name: "Legendary Realm", description: "Earn a Legendary card.", icon: "⚡" },
-  { id: "heavy_editor", name: "Set Designer", description: "Place 5+ props in the scene editor.", icon: "✨" },
-  { id: "all_pickups", name: "Treasure Hunter", description: "Collect every pickup in one playthrough.", icon: "🎒" },
-  { id: "visit_all_scenes", name: "Cartographer", description: "Visit all 5 main scenes in one playthrough.", icon: "🧭" },
-  { id: "share_realm", name: "Storyteller", description: "Share one of your realms.", icon: "📨" },
-  { id: "dragon_friend", name: "Dragon Friend", description: "Star the friendly dragon in a realm.", icon: "🐉" },
-  { id: "wizard_friend", name: "Wizard Apprentice", description: "Star the young wizard in a realm.", icon: "🪄" },
-  { id: "underwater_realm", name: "Deep Diver", description: "Set a realm in the underwater coral garden.", icon: "🐠" },
+  { id: "first_steps", name: "First Steps", description: "Visit your very first scene.", icon: "👣", trigger: "scene_visited" },
+  { id: "realm_walker", name: "Realm Walker", description: "Visit 10 unique scenes across all your realms.", icon: "🧭", trigger: "scene_visited" },
+  { id: "world_wanderer", name: "World Wanderer", description: "Visit every kind of background at least once.", icon: "🏞️", trigger: "scene_visited" },
+  { id: "story_finisher", name: "Story Finisher", description: "Finish your first realm.", icon: "📖", trigger: "world_completed" },
+  { id: "five_worlds_strong", name: "Five Worlds Strong", description: "Finish 5 realms.", icon: "🏆", trigger: "world_completed" },
+  { id: "all_heroes_tried", name: "All Heroes Tried", description: "Play with at least 10 different characters.", icon: "🎭", trigger: "world_completed" },
+  { id: "treasure_hunter", name: "Treasure Hunter", description: "Collect 10 different pickups across all realms.", icon: "🎒", trigger: "pickup_collected" },
+  { id: "side_quester", name: "Side Quester", description: "Complete your first side quest.", icon: "✨", trigger: "side_quest_completed" },
+  { id: "secret_keeper", name: "Secret Keeper", description: "Discover a hidden ending.", icon: "🔮", trigger: "secret_ending_discovered" },
+  { id: "mystery_master", name: "Mystery Master", description: "Discover 5 hidden endings.", icon: "🪐", trigger: "secret_ending_discovered" },
+  { id: "summoner", name: "Summoner", description: "Use the summon feature for the first time.", icon: "✨", trigger: "summon_used" },
+  { id: "master_summoner", name: "Master Summoner", description: "Successfully summon 10 different props.", icon: "💫", trigger: "summon_used" },
+  { id: "share_realm", name: "Storyteller", description: "Share one of your realms.", icon: "📨", trigger: "world_shared" },
 ];
 
 export const ACHIEVEMENT_DEFS_BY_ID: Record<string, AchievementDef> = Object.fromEntries(

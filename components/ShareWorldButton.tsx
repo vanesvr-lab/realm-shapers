@@ -1,7 +1,13 @@
 "use client";
 import { useState } from "react";
 
-export function ShareWorldButton({ shareSlug }: { shareSlug: string }) {
+export function ShareWorldButton({
+  shareSlug,
+  worldId,
+}: {
+  shareSlug: string;
+  worldId: string;
+}) {
   const [copied, setCopied] = useState(false);
   const url =
     typeof window === "undefined"
@@ -19,7 +25,7 @@ export function ShareWorldButton({ shareSlug }: { shareSlug: string }) {
     void fetch("/api/check-achievements", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind: "world_shared" }),
+      body: JSON.stringify({ kind: "world_shared", world_id: worldId }),
     }).catch(() => {
       // non-blocking
     });

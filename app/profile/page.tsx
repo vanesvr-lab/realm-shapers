@@ -3,6 +3,7 @@ import Link from "next/link";
 import { serverSupabase } from "@/lib/supabase-server";
 import type { StoryTree, WorldIngredients } from "@/lib/claude";
 import { ACHIEVEMENT_DEFS } from "@/lib/achievements-types";
+import { countSecretsDiscovered, countSideQuestsCompleted } from "@/lib/achievements";
 import { RealmCardThumb } from "@/components/RealmCardThumb";
 
 type WorldRow = {
@@ -29,18 +30,18 @@ export default async function ProfilePage() {
     .maybeSingle();
   if (!profile) redirect("/setup-username");
 
-  const [{ data: worlds }, { data: unlocks }] = await Promise.all([
-    supabase
-      .from("worlds")
-      .select("id, title, narration, share_slug, created_at, map, ingredients")
-      .order("created_at", { ascending: false }),
-    supabase.from("user_achievements").select("achievement_id, unlocked_at"),
-  ]);
+  const [{ data: worlds }, { data: unlocks }, secretsDiscovered, sideQuestsCompleted] =
+    await Promise.all([
+      supabase
+        .from("worlds")
+        .select("id, title, narration, share_slug, created_at, map, ingredients")
+        .order("created_at", { ascending: false }),
+      supabase.from("user_achievements").select("achievement_id, unlocked_at"),
+      countSecretsDiscovered(supabase, user.id),
+      countSideQuestsCompleted(supabase, user.id),
+    ]);
 
   const unlockedIds = new Set((unlocks ?? []).map((u) => u.achievement_id as string));
-  const secretsDiscovered = unlockedIds.has("secret_ending")
-    ? Math.max(1, (unlocks ?? []).filter((u) => u.achievement_id === "secret_ending").length)
-    : 0;
 
   const playable = (worlds ?? []) as WorldRow[];
   const unlockedCount = unlockedIds.size;
@@ -156,7 +157,7 @@ export default async function ProfilePage() {
         </ul>
       </section>
 
-      <section className="mb-10">
+      <section className="mb-10 grid sm:grid-cols-2 gap-4">
         <div className="rounded-2xl bg-gradient-to-br from-purple-100 to-pink-100 border border-purple-200 p-5 flex items-center gap-4">
           <span className="text-4xl" aria-hidden>
             🔮
@@ -168,6 +169,20 @@ export default async function ProfilePage() {
             <p className="text-2xl font-extrabold text-purple-900">{secretsDiscovered}</p>
             <p className="text-xs text-purple-900/70">
               Secret endings revealed across all your realms.
+            </p>
+          </div>
+        </div>
+        <div className="rounded-2xl bg-gradient-to-br from-fuchsia-100 to-amber-100 border border-fuchsia-200 p-5 flex items-center gap-4">
+          <span className="text-4xl" aria-hidden>
+            ✨
+          </span>
+          <div>
+            <p className="text-xs uppercase tracking-widest text-fuchsia-700/80 font-semibold">
+              Side Quests Completed
+            </p>
+            <p className="text-2xl font-extrabold text-fuchsia-900">{sideQuestsCompleted}</p>
+            <p className="text-xs text-fuchsia-900/70">
+              Optional branches you took the time to explore.
             </p>
           </div>
         </div>

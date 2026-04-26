@@ -10,10 +10,10 @@ export type AssetDef = {
 };
 
 const STYLE_SUFFIX =
-  "in bright cartoon storybook style, kid friendly, soft pastel colors, clean shapes, simple flat illustration, white background, no text, no letters, no words, no weapons, no scary elements, centered, full body";
+  "in soft Studio Ghibli watercolor style, magical children's book illustration, warm friendly lighting, painted texture, kid friendly, white background, no text, no letters, no words, no weapons, no scary elements, centered, full body";
 
 const SCENE_STYLE_SUFFIX =
-  "in bright cartoon storybook style, kid friendly, soft pastel colors, clean shapes, simple flat illustration, no text, no letters, no words, no people, no characters, wide landscape composition, gentle and inviting";
+  "in soft Studio Ghibli watercolor style, magical children's book illustration, warm golden hour lighting, atmospheric depth, no people, no characters, wide landscape composition, gentle and inviting";
 
 // Shared with the placeholder/sync scripts. Default to .svg; the sync script
 // flips entries to .png as real Replicate-generated images land on disk.

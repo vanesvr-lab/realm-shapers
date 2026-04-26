@@ -13,7 +13,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 
 const MODEL = "black-forest-labs/flux-schnell" as const;
-const CONCURRENCY = 4;
+const CONCURRENCY = 1;
 
 const args = parseArgs(process.argv.slice(2));
 
@@ -70,6 +70,8 @@ async function main() {
           const msg = err instanceof Error ? err.message : String(err);
           console.error(`[fail] ${asset.id}: ${msg}`);
         }
+        // Throttle to stay under 6 req/min rate limit (gives 11s cushion)
+        await new Promise((resolve) => setTimeout(resolve, 11000));
       }
     })
   );

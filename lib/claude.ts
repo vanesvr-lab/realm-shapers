@@ -50,6 +50,7 @@ export type StoryScene = {
   default_props: string[];
   pickups: string[];
   choices: StoryChoice[];
+  is_side_quest?: boolean;
 };
 
 export type StoryTree = {
@@ -168,7 +169,7 @@ async function callClaude(prompt: string, maxTokens: number): Promise<string> {
 }
 
 function buildStoryPrompt(i: WorldIngredients): string {
-  return `You are the Oracle in a creative game called Realm Shapers. A young player (around age 11) gives you four ingredients. You craft a small point-and-click adventure for them.
+  return `You are the Oracle in a creative game called Realm Shapers. A young player (around age 11) gives you four ingredients. You craft a longer point-and-click adventure for them.
 
 Ingredients:
 - Setting: ${i.setting}
@@ -176,11 +177,14 @@ Ingredients:
 - Goal: ${i.goal}
 - Twist: ${i.twist}
 
-You must compose a 5-scene branching story tree. The first scene is the start. There are 2 to 3 ending scenes (no choices). Every choice MUST point at one of the 5 scene ids you list. Every scene id MUST be a unique snake_case string.
+You must compose a longer branching story tree of 8 to 10 scenes total:
+- 5 to 7 main path scenes that move toward 1 to 3 endings.
+- 2 to 3 side quest scenes that branch off the main path. Each side quest scene MUST set "is_side_quest": true. A side quest gives the player a reward (a unique pickup or a special moment) and then either points back to the main path or leads to the secret ending.
+- 1 to 3 of the scenes (main or side quest) are endings: their "choices" array is empty.
 
 In play mode the kid clicks objects in each scene to advance. Each choice you write becomes a clickable interactable. Choose its kind from: "door" (a doorway, gate, archway), "chest" (a container, box, lock), "path" (a road, trail, opening), "sparkle" (a glowing object, twinkle), "creature" (a friendly being to talk to).
 
-Some scenes give the player items to collect via a "pickups" list. A later choice can require those items. Keep this lightweight: across the whole tree, generate 2-4 pickups total and at most 1-2 choices that have a "requires" field. A "requires" entry MUST match a prop id that appears as a pickup somewhere earlier in the tree.
+Some scenes give the player items to collect via a "pickups" list. A later choice can require those items. Across the whole tree, generate 3 to 5 pickups total and at most 2 to 3 choices that have a "requires" field. A "requires" entry MUST match a prop id that appears as a pickup somewhere earlier in the tree. Side quest scenes are a great place to grant unique pickups.
 
 You must reference assets ONLY from the curated library below. Do NOT invent new ids.
 
@@ -190,7 +194,7 @@ ALLOWED default_character_id values: ${CHARACTER_IDS.join(", ")}
 
 ALLOWED prop ids (for default_props and pickups arrays): ${PROP_IDS.join(", ")}
 
-You must also write a "secret_ending" scene that is hidden from the normal choices. This becomes the player's true ending if they explore everything. It uses the same shape as a normal ending scene (no choices) and ties back to the ingredients in a satisfying way.
+You must also write a "secret_ending" scene that is hidden from the normal choices. This becomes the player's true ending if they explore everything (visit all scenes or collect all pickups). It uses the same shape as a normal ending scene (no choices) and ties back to the ingredients in a satisfying way.
 
 Respond with ONLY JSON in EXACTLY this shape, no preamble, no markdown, no code fences:
 {
@@ -206,6 +210,7 @@ Respond with ONLY JSON in EXACTLY this shape, no preamble, no markdown, no code 
       "ambient_audio_prompt": "5 to 12 words describing ambient sound only, never music or speech",
       "default_props": ["0 to 3 prop ids from the allowed list"],
       "pickups": ["0 to 2 prop ids from the allowed list, must NOT also appear in this scene's default_props"],
+      "is_side_quest": false,
       "choices": [
         {
           "id": "snake_case_id, unique within this scene",
@@ -218,28 +223,31 @@ Respond with ONLY JSON in EXACTLY this shape, no preamble, no markdown, no code 
     }
   ],
   "secret_ending": {
-    "id": "snake_case_id, unique, NOT one of the 5 main scene ids",
+    "id": "snake_case_id, unique, NOT one of the main scene ids",
     "title": "string, 2 to 5 words",
     "narration": "string, 2 to 3 sentences. Surprising and rewarding.",
     "background_id": "allowed background id",
     "ambient_audio_prompt": "5 to 12 words ambient",
     "default_props": ["0 to 3 prop ids"],
     "pickups": [],
+    "is_side_quest": false,
     "choices": []
   }
 }
 
 Hard rules:
-- scenes array MUST have exactly 5 entries.
-- starting_scene_id MUST match the id of one of the 5 scenes.
-- 2 or 3 of the 5 scenes MUST be endings: their choices array is empty.
-- The other 2 or 3 scenes MUST have exactly 2 or 3 choices each.
+- scenes array MUST have between 8 and 10 entries (inclusive).
+- Exactly 2 or 3 of those scenes MUST have "is_side_quest": true. The rest MUST have "is_side_quest": false.
+- starting_scene_id MUST match the id of one main (non side quest) scene.
+- 1 to 3 of the scenes MUST be endings: their choices array is empty.
+- Non-ending scenes MUST have exactly 2 or 3 choices each.
 - Every next_scene_id MUST equal one of the scene ids in this tree (no dangling references).
 - Every background_id, default_character_id, and prop id MUST come from the allowed lists. No new ids, no synonyms.
 - Every interactable_kind MUST be one of: door, chest, path, sparkle, creature.
 - Every "requires" entry, if present, MUST be a prop id that also appears in some scene's pickups array. Skip the "requires" field entirely on choices that have no requirement.
 - pickups for a single scene MUST NOT contain duplicates and must NOT include any id from that same scene's default_props.
-- The secret_ending field is REQUIRED. Its id MUST be unique and MUST NOT match any of the 5 main scene ids. Its choices array MUST be empty.
+- The secret_ending field is REQUIRED. Its id MUST be unique and MUST NOT match any of the main scene ids. Its choices array MUST be empty.
+- Each side quest scene MUST be entered from at least one choice in a main path scene; that choice's interactable_kind should typically be "sparkle".
 - ambient_audio_prompt is for ElevenLabs Sound Effects, ambient only (waves, wind, rustling leaves, distant chimes), NEVER music or speech.
 - Avoid violence, romance, brand names, scary content. The player is around 11.`;
 }
@@ -306,8 +314,8 @@ function parseStoryResponse(raw: string): StoryTree {
   if (!Array.isArray(obj.scenes)) {
     throw new Error("scenes is not an array");
   }
-  if (obj.scenes.length !== 5) {
-    throw new Error(`scenes length ${obj.scenes.length} must be 5`);
+  if (obj.scenes.length < 8 || obj.scenes.length > 10) {
+    throw new Error(`scenes length ${obj.scenes.length} must be between 8 and 10`);
   }
   const scenes = obj.scenes.map((s, idx) => parseScene(s, idx));
   const ids = new Set(scenes.map((s) => s.id));
@@ -329,6 +337,14 @@ function parseStoryResponse(raw: string): StoryTree {
   const endings = scenes.filter((s) => s.choices.length === 0).length;
   if (endings < 1) {
     throw new Error("at least one ending scene required");
+  }
+  const sideQuestCount = scenes.filter((s) => s.is_side_quest).length;
+  if (sideQuestCount < 2 || sideQuestCount > 3) {
+    throw new Error(`side quest count ${sideQuestCount} must be between 2 and 3`);
+  }
+  const startingScene = scenes.find((s) => s.id === starting_scene_id);
+  if (startingScene?.is_side_quest) {
+    throw new Error("starting_scene_id must not be a side quest");
   }
 
   let secret_ending: StoryScene | undefined;
@@ -388,6 +404,7 @@ function parseScene(raw: unknown, idx: number): StoryScene {
     throw new Error(`scene[${idx}] must have 0, 2, or 3 choices`);
   }
   const choices = choices_raw.map((c, ci) => parseChoice(c, idx, ci));
+  const is_side_quest = s.is_side_quest === true;
   return {
     id,
     title,
@@ -397,6 +414,7 @@ function parseScene(raw: unknown, idx: number): StoryScene {
     default_props,
     pickups,
     choices,
+    is_side_quest,
   };
 }
 
@@ -489,9 +507,11 @@ function defaultStory(i: WorldIngredients): StoryTree {
       ambient_audio_prompt: "soft wind, distant chimes, gentle outdoor air",
       default_props: ["signpost", "lantern"],
       pickups: ["key"],
+      is_side_quest: false,
       choices: [
         { id: "go_left", label: "Take the left path", next_scene_id: "clearing", interactable_kind: "path" },
         { id: "go_right", label: "Take the right path", next_scene_id: "cave_in", interactable_kind: "path" },
+        { id: "follow_lantern", label: "Follow the dancing lantern", next_scene_id: "lantern_grove", interactable_kind: "sparkle" },
       ],
     },
     {
@@ -502,8 +522,9 @@ function defaultStory(i: WorldIngredients): StoryTree {
       ambient_audio_prompt: "rustling leaves, soft birdsong, gentle wind",
       default_props: ["mushroom", "flower"],
       pickups: ["gem"],
+      is_side_quest: false,
       choices: [
-        { id: "rest", label: "Rest here", next_scene_id: "ending_calm", interactable_kind: "sparkle" },
+        { id: "rest", label: "Rest here", next_scene_id: "river_bend", interactable_kind: "sparkle" },
         { id: "press_on", label: "Press onward", next_scene_id: "ending_bright", interactable_kind: "door", requires: ["key"] },
       ],
     },
@@ -515,9 +536,24 @@ function defaultStory(i: WorldIngredients): StoryTree {
       ambient_audio_prompt: "soft cave drips, faint humming crystals",
       default_props: ["lantern"],
       pickups: [],
+      is_side_quest: false,
       choices: [
-        { id: "follow_glow", label: "Follow the glow", next_scene_id: "ending_bright", interactable_kind: "sparkle" },
-        { id: "turn_back", label: "Turn back", next_scene_id: "ending_calm", interactable_kind: "path" },
+        { id: "follow_glow", label: "Follow the glow", next_scene_id: "fountain_pool", interactable_kind: "sparkle" },
+        { id: "turn_back", label: "Turn back", next_scene_id: "river_bend", interactable_kind: "path" },
+      ],
+    },
+    {
+      id: "river_bend",
+      title: "The River Bend",
+      narration: "A slow river wraps the path. The water hums an old, kind tune. The realm seems to pause for you.",
+      background_id: "swamp",
+      ambient_audio_prompt: "lapping water, soft frogs, gentle wind through reeds",
+      default_props: ["bridge"],
+      pickups: [],
+      is_side_quest: false,
+      choices: [
+        { id: "cross", label: "Cross the bridge", next_scene_id: "ending_calm", interactable_kind: "path" },
+        { id: "ending_grove", label: "Slip into the misty grove", next_scene_id: "ending_bright", interactable_kind: "door", requires: ["key"] },
       ],
     },
     {
@@ -528,6 +564,7 @@ function defaultStory(i: WorldIngredients): StoryTree {
       ambient_audio_prompt: "soft wind, faint chimes, calm outdoor air",
       default_props: ["flower"],
       pickups: [],
+      is_side_quest: false,
       choices: [],
     },
     {
@@ -538,7 +575,34 @@ function defaultStory(i: WorldIngredients): StoryTree {
       ambient_audio_prompt: "soft chimes, distant bell tones, gentle airy whoosh",
       default_props: ["star"],
       pickups: [],
+      is_side_quest: false,
       choices: [],
+    },
+    {
+      id: "lantern_grove",
+      title: "Lantern Grove",
+      narration: "A tiny grove glows with floating lanterns. One drifts down and offers itself to you.",
+      background_id: "forest",
+      ambient_audio_prompt: "soft wind, distant chimes, faint warm crackle",
+      default_props: ["lantern"],
+      pickups: ["candle"],
+      is_side_quest: true,
+      choices: [
+        { id: "back_to_path", label: "Return to the path", next_scene_id: "clearing", interactable_kind: "path" },
+      ],
+    },
+    {
+      id: "fountain_pool",
+      title: "The Bright Fountain",
+      narration: "Crystal water laughs in a tiny basin. A sparkle gathers itself for you, polite and patient.",
+      background_id: "library",
+      ambient_audio_prompt: "soft splashing water, faint ringing chimes",
+      default_props: ["fountain"],
+      pickups: ["star"],
+      is_side_quest: true,
+      choices: [
+        { id: "back_to_cave", label: "Slip back into the cave", next_scene_id: "cave_in", interactable_kind: "path" },
+      ],
     },
   ];
 
@@ -550,6 +614,7 @@ function defaultStory(i: WorldIngredients): StoryTree {
     ambient_audio_prompt: "soft whispering pages, gentle distant chimes",
     default_props: ["scroll", "candle"],
     pickups: [],
+    is_side_quest: false,
     choices: [],
   };
 

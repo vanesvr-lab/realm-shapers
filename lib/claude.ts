@@ -23,10 +23,22 @@ export type WorldIngredients = {
 
 export type IngredientSlot = "setting" | "character" | "goal" | "twist";
 
+export type InteractableKind = "door" | "chest" | "path" | "sparkle" | "creature";
+
+export const VALID_INTERACTABLE_KINDS: InteractableKind[] = [
+  "door",
+  "chest",
+  "path",
+  "sparkle",
+  "creature",
+];
+
 export type StoryChoice = {
   id: string;
   label: string;
   next_scene_id: string;
+  interactable_kind: InteractableKind;
+  requires?: string[];
 };
 
 export type StoryScene = {
@@ -36,6 +48,7 @@ export type StoryScene = {
   background_id: string;
   ambient_audio_prompt: string;
   default_props: string[];
+  pickups: string[];
   choices: StoryChoice[];
 };
 
@@ -44,6 +57,7 @@ export type StoryTree = {
   starting_scene_id: string;
   default_character_id: string;
   scenes: StoryScene[];
+  secret_ending?: StoryScene;
 };
 
 export type GeneratedWorld = {
@@ -55,13 +69,13 @@ export async function generateWorld(
   ingredients: WorldIngredients
 ): Promise<GeneratedWorld> {
   try {
-    const text = await callClaude(buildStoryPrompt(ingredients), 4096);
+    const text = await callClaude(buildStoryPrompt(ingredients), 5120);
     const story = parseStoryResponse(text);
     return { title: story.title, story };
   } catch (firstErr) {
     console.error("StoryTree generation failed once, retrying", firstErr);
     try {
-      const text = await callClaude(buildStoryPrompt(ingredients), 4096);
+      const text = await callClaude(buildStoryPrompt(ingredients), 5120);
       const story = parseStoryResponse(text);
       return { title: story.title, story };
     } catch (secondErr) {
@@ -154,7 +168,7 @@ async function callClaude(prompt: string, maxTokens: number): Promise<string> {
 }
 
 function buildStoryPrompt(i: WorldIngredients): string {
-  return `You are the Oracle in a creative game called Realm Shapers. A young player (around age 11) gives you four ingredients. You craft a small choose-your-own-adventure for them.
+  return `You are the Oracle in a creative game called Realm Shapers. A young player (around age 11) gives you four ingredients. You craft a small point-and-click adventure for them.
 
 Ingredients:
 - Setting: ${i.setting}
@@ -164,13 +178,19 @@ Ingredients:
 
 You must compose a 5-scene branching story tree. The first scene is the start. There are 2 to 3 ending scenes (no choices). Every choice MUST point at one of the 5 scene ids you list. Every scene id MUST be a unique snake_case string.
 
+In play mode the kid clicks objects in each scene to advance. Each choice you write becomes a clickable interactable. Choose its kind from: "door" (a doorway, gate, archway), "chest" (a container, box, lock), "path" (a road, trail, opening), "sparkle" (a glowing object, twinkle), "creature" (a friendly being to talk to).
+
+Some scenes give the player items to collect via a "pickups" list. A later choice can require those items. Keep this lightweight: across the whole tree, generate 2-4 pickups total and at most 1-2 choices that have a "requires" field. A "requires" entry MUST match a prop id that appears as a pickup somewhere earlier in the tree.
+
 You must reference assets ONLY from the curated library below. Do NOT invent new ids.
 
 ALLOWED background_id values: ${BACKGROUND_IDS.join(", ")}
 
 ALLOWED default_character_id values: ${CHARACTER_IDS.join(", ")}
 
-ALLOWED prop ids (for default_props arrays): ${PROP_IDS.join(", ")}
+ALLOWED prop ids (for default_props and pickups arrays): ${PROP_IDS.join(", ")}
+
+You must also write a "secret_ending" scene that is hidden from the normal choices. This becomes the player's true ending if they explore everything. It uses the same shape as a normal ending scene (no choices) and ties back to the ingredients in a satisfying way.
 
 Respond with ONLY JSON in EXACTLY this shape, no preamble, no markdown, no code fences:
 {
@@ -185,11 +205,28 @@ Respond with ONLY JSON in EXACTLY this shape, no preamble, no markdown, no code 
       "background_id": "must be one of the allowed background ids",
       "ambient_audio_prompt": "5 to 12 words describing ambient sound only, never music or speech",
       "default_props": ["0 to 3 prop ids from the allowed list"],
+      "pickups": ["0 to 2 prop ids from the allowed list, must NOT also appear in this scene's default_props"],
       "choices": [
-        { "id": "snake_case_id, unique within this scene", "label": "2 to 6 word kid-friendly button text", "next_scene_id": "id of another scene in this tree" }
+        {
+          "id": "snake_case_id, unique within this scene",
+          "label": "2 to 6 word kid-friendly button text",
+          "next_scene_id": "id of another scene in this tree",
+          "interactable_kind": "door | chest | path | sparkle | creature",
+          "requires": ["optional, prop ids that must be collected first"]
+        }
       ]
     }
-  ]
+  ],
+  "secret_ending": {
+    "id": "snake_case_id, unique, NOT one of the 5 main scene ids",
+    "title": "string, 2 to 5 words",
+    "narration": "string, 2 to 3 sentences. Surprising and rewarding.",
+    "background_id": "allowed background id",
+    "ambient_audio_prompt": "5 to 12 words ambient",
+    "default_props": ["0 to 3 prop ids"],
+    "pickups": [],
+    "choices": []
+  }
 }
 
 Hard rules:
@@ -199,6 +236,10 @@ Hard rules:
 - The other 2 or 3 scenes MUST have exactly 2 or 3 choices each.
 - Every next_scene_id MUST equal one of the scene ids in this tree (no dangling references).
 - Every background_id, default_character_id, and prop id MUST come from the allowed lists. No new ids, no synonyms.
+- Every interactable_kind MUST be one of: door, chest, path, sparkle, creature.
+- Every "requires" entry, if present, MUST be a prop id that also appears in some scene's pickups array. Skip the "requires" field entirely on choices that have no requirement.
+- pickups for a single scene MUST NOT contain duplicates and must NOT include any id from that same scene's default_props.
+- The secret_ending field is REQUIRED. Its id MUST be unique and MUST NOT match any of the 5 main scene ids. Its choices array MUST be empty.
 - ambient_audio_prompt is for ElevenLabs Sound Effects, ambient only (waves, wind, rustling leaves, distant chimes), NEVER music or speech.
 - Avoid violence, romance, brand names, scary content. The player is around 11.`;
 }
@@ -289,7 +330,40 @@ function parseStoryResponse(raw: string): StoryTree {
   if (endings < 1) {
     throw new Error("at least one ending scene required");
   }
-  return { title, starting_scene_id, default_character_id, scenes };
+
+  let secret_ending: StoryScene | undefined;
+  if (obj.secret_ending) {
+    try {
+      const parsed = parseScene(obj.secret_ending, 99);
+      if (ids.has(parsed.id)) {
+        throw new Error("secret_ending id collides with main scene id");
+      }
+      if (parsed.choices.length !== 0) {
+        throw new Error("secret_ending must have no choices");
+      }
+      secret_ending = parsed;
+    } catch (err) {
+      console.warn("secret_ending invalid, dropping:", err);
+    }
+  }
+
+  // Soft-validate requires references (warn but do not throw).
+  const allPickupIds = new Set<string>();
+  for (const s of scenes) for (const p of s.pickups) allPickupIds.add(p);
+  for (const s of scenes) {
+    for (const c of s.choices) {
+      if (c.requires) {
+        const missing = c.requires.filter((r) => !allPickupIds.has(r));
+        if (missing.length > 0) {
+          console.warn(
+            `scene ${s.id} choice ${c.id} requires ${missing.join(", ")} not found in any pickups`
+          );
+        }
+      }
+    }
+  }
+
+  return { title, starting_scene_id, default_character_id, scenes, secret_ending };
 }
 
 function parseScene(raw: unknown, idx: number): StoryScene {
@@ -305,20 +379,40 @@ function parseScene(raw: unknown, idx: number): StoryScene {
     throw new Error(`scene[${idx}] background_id ${background_id} not in library`);
   }
   const ambient_audio_prompt = requireString(s.ambient_audio_prompt, `scene[${idx}].ambient_audio_prompt`);
-  const default_props_raw = Array.isArray(s.default_props) ? s.default_props : [];
-  const default_props: string[] = [];
-  for (const p of default_props_raw) {
-    if (typeof p !== "string") continue;
-    if (!isValidPropId(p)) continue;
-    default_props.push(p);
-    if (default_props.length >= 3) break;
-  }
+
+  const default_props = parsePropList(s.default_props, 3);
+  const pickups = parsePropList(s.pickups, 2).filter((p) => !default_props.includes(p));
+
   const choices_raw = Array.isArray(s.choices) ? s.choices : [];
   if (choices_raw.length !== 0 && (choices_raw.length < 2 || choices_raw.length > 3)) {
     throw new Error(`scene[${idx}] must have 0, 2, or 3 choices`);
   }
   const choices = choices_raw.map((c, ci) => parseChoice(c, idx, ci));
-  return { id, title, narration, background_id, ambient_audio_prompt, default_props, choices };
+  return {
+    id,
+    title,
+    narration,
+    background_id,
+    ambient_audio_prompt,
+    default_props,
+    pickups,
+    choices,
+  };
+}
+
+function parsePropList(raw: unknown, max: number): string[] {
+  const arr = Array.isArray(raw) ? raw : [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const p of arr) {
+    if (typeof p !== "string") continue;
+    if (!isValidPropId(p)) continue;
+    if (seen.has(p)) continue;
+    seen.add(p);
+    out.push(p);
+    if (out.length >= max) break;
+  }
+  return out;
 }
 
 function parseChoice(raw: unknown, sceneIdx: number, choiceIdx: number): StoryChoice {
@@ -329,7 +423,21 @@ function parseChoice(raw: unknown, sceneIdx: number, choiceIdx: number): StoryCh
   const id = requireString(c.id, `scene[${sceneIdx}] choice[${choiceIdx}].id`);
   const label = requireString(c.label, `scene[${sceneIdx}] choice[${choiceIdx}].label`);
   const next_scene_id = requireString(c.next_scene_id, `scene[${sceneIdx}] choice[${choiceIdx}].next_scene_id`);
-  return { id, label, next_scene_id };
+  const kindRaw = c.interactable_kind;
+  let interactable_kind: InteractableKind;
+  if (typeof kindRaw === "string" && VALID_INTERACTABLE_KINDS.includes(kindRaw as InteractableKind)) {
+    interactable_kind = kindRaw as InteractableKind;
+  } else {
+    interactable_kind = "path";
+  }
+  let requires: string[] | undefined;
+  if (Array.isArray(c.requires)) {
+    const filtered = c.requires.filter((r): r is string => typeof r === "string" && isValidPropId(r));
+    if (filtered.length > 0) requires = Array.from(new Set(filtered));
+  }
+  const choice: StoryChoice = { id, label, next_scene_id, interactable_kind };
+  if (requires) choice.requires = requires;
+  return choice;
 }
 
 function requireString(v: unknown, field: string): string {
@@ -372,66 +480,85 @@ function defaultStory(i: WorldIngredients): StoryTree {
   const seedGoal = i.goal.toLowerCase();
   const seedTwist = i.twist.toLowerCase();
 
+  const main: StoryScene[] = [
+    {
+      id: "threshold",
+      title: "The Threshold",
+      narration: `You arrive somewhere that feels like ${seedSetting}. The path forks ahead. Whatever is happening here, ${seedCharacter} is the one to face it.`,
+      background_id: "forest",
+      ambient_audio_prompt: "soft wind, distant chimes, gentle outdoor air",
+      default_props: ["signpost", "lantern"],
+      pickups: ["key"],
+      choices: [
+        { id: "go_left", label: "Take the left path", next_scene_id: "clearing", interactable_kind: "path" },
+        { id: "go_right", label: "Take the right path", next_scene_id: "cave_in", interactable_kind: "path" },
+      ],
+    },
+    {
+      id: "clearing",
+      title: "The Clearing",
+      narration: `You step into a quiet clearing. Your goal pulls you forward: ${seedGoal}. A small surprise waits, since ${seedTwist}.`,
+      background_id: "garden",
+      ambient_audio_prompt: "rustling leaves, soft birdsong, gentle wind",
+      default_props: ["mushroom", "flower"],
+      pickups: ["gem"],
+      choices: [
+        { id: "rest", label: "Rest here", next_scene_id: "ending_calm", interactable_kind: "sparkle" },
+        { id: "press_on", label: "Press onward", next_scene_id: "ending_bright", interactable_kind: "door", requires: ["key"] },
+      ],
+    },
+    {
+      id: "cave_in",
+      title: "Inside the Cave",
+      narration: "You duck into a glowing cave. Crystals hum softly. Something here is paying attention.",
+      background_id: "cave",
+      ambient_audio_prompt: "soft cave drips, faint humming crystals",
+      default_props: ["lantern"],
+      pickups: [],
+      choices: [
+        { id: "follow_glow", label: "Follow the glow", next_scene_id: "ending_bright", interactable_kind: "sparkle" },
+        { id: "turn_back", label: "Turn back", next_scene_id: "ending_calm", interactable_kind: "path" },
+      ],
+    },
+    {
+      id: "ending_calm",
+      title: "A Calm Ending",
+      narration: "You take a slow breath. The realm settles around you. For now, your journey rests.",
+      background_id: "garden",
+      ambient_audio_prompt: "soft wind, faint chimes, calm outdoor air",
+      default_props: ["flower"],
+      pickups: [],
+      choices: [],
+    },
+    {
+      id: "ending_bright",
+      title: "A Bright Ending",
+      narration: "Light wraps around you. The realm welcomes what you brought to it.",
+      background_id: "sky_kingdom",
+      ambient_audio_prompt: "soft chimes, distant bell tones, gentle airy whoosh",
+      default_props: ["star"],
+      pickups: [],
+      choices: [],
+    },
+  ];
+
+  const secret: StoryScene = {
+    id: "ending_hidden",
+    title: "A Hidden Ending",
+    narration: "A door you never noticed opens. Beyond it, the realm whispers a thank you only you can hear.",
+    background_id: "library",
+    ambient_audio_prompt: "soft whispering pages, gentle distant chimes",
+    default_props: ["scroll", "candle"],
+    pickups: [],
+    choices: [],
+  };
+
   return {
     title: "A Realm Half-Shaped",
     starting_scene_id: "threshold",
     default_character_id: "hero_girl",
-    scenes: [
-      {
-        id: "threshold",
-        title: "The Threshold",
-        narration: `You arrive somewhere that feels like ${seedSetting}. The path forks ahead. Whatever is happening here, ${seedCharacter} is the one to face it.`,
-        background_id: "forest",
-        ambient_audio_prompt: "soft wind, distant chimes, gentle outdoor air",
-        default_props: ["signpost", "lantern"],
-        choices: [
-          { id: "go_left", label: "Take the left path", next_scene_id: "clearing" },
-          { id: "go_right", label: "Take the right path", next_scene_id: "cave_in" },
-        ],
-      },
-      {
-        id: "clearing",
-        title: "The Clearing",
-        narration: `You step into a quiet clearing. Your goal pulls you forward: ${seedGoal}. A small surprise waits, since ${seedTwist}.`,
-        background_id: "garden",
-        ambient_audio_prompt: "rustling leaves, soft birdsong, gentle wind",
-        default_props: ["mushroom", "flower"],
-        choices: [
-          { id: "rest", label: "Rest here", next_scene_id: "ending_calm" },
-          { id: "press_on", label: "Press onward", next_scene_id: "ending_bright" },
-        ],
-      },
-      {
-        id: "cave_in",
-        title: "Inside the Cave",
-        narration: "You duck into a glowing cave. Crystals hum softly. Something here is paying attention.",
-        background_id: "cave",
-        ambient_audio_prompt: "soft cave drips, faint humming crystals",
-        default_props: ["gem", "lantern"],
-        choices: [
-          { id: "follow_glow", label: "Follow the glow", next_scene_id: "ending_bright" },
-          { id: "turn_back", label: "Turn back", next_scene_id: "ending_calm" },
-        ],
-      },
-      {
-        id: "ending_calm",
-        title: "A Calm Ending",
-        narration: "You take a slow breath. The realm settles around you. For now, your journey rests.",
-        background_id: "garden",
-        ambient_audio_prompt: "soft wind, faint chimes, calm outdoor air",
-        default_props: ["flower"],
-        choices: [],
-      },
-      {
-        id: "ending_bright",
-        title: "A Bright Ending",
-        narration: "Light wraps around you. The realm welcomes what you brought to it.",
-        background_id: "sky_kingdom",
-        ambient_audio_prompt: "soft chimes, distant bell tones, gentle airy whoosh",
-        default_props: ["star"],
-        choices: [],
-      },
-    ],
+    scenes: main,
+    secret_ending: secret,
   };
 }
 

@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { serverSupabase } from "@/lib/supabase-server";
-import { IngredientForm } from "@/components/IngredientForm";
+import { LandingForm } from "@/components/LandingForm";
+import { StylePicker } from "@/components/StylePicker";
 
 export default async function Home() {
   const supabase = serverSupabase();
@@ -24,8 +25,16 @@ export default async function Home() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-rose-50">
+      <StylePicker />
+
       {username && (
-        <div className="max-w-3xl mx-auto px-6 pt-6 flex items-center justify-end">
+        <div className="max-w-3xl mx-auto px-6 pt-6 flex items-center justify-end gap-4">
+          <Link
+            href="/preview-3d"
+            className="text-sm text-emerald-800 underline hover:no-underline"
+          >
+            🎮 3D preview
+          </Link>
           <Link
             href="/profile"
             className="text-sm text-amber-800 underline hover:no-underline"
@@ -34,7 +43,8 @@ export default async function Home() {
           </Link>
         </div>
       )}
-      <section className="max-w-3xl mx-auto px-6 pt-10 pb-10 text-center">
+
+      <section className="max-w-3xl mx-auto px-6 pt-10 pb-6 text-center">
         <p className="text-sm uppercase tracking-widest text-amber-700 mb-3">
           Realm Shapers
         </p>
@@ -42,14 +52,14 @@ export default async function Home() {
           Shape your own realm
         </h1>
         <p className="text-lg text-slate-700 max-w-xl mx-auto text-balance">
-          Pick four ingredients. The Oracle will weave them into a world you can
-          walk through, with its own map and soundscape.
+          Pick four ingredients. The Oracle will weave them into a small
+          choose-your-own-adventure with art, sound, and a scene you can edit.
         </p>
       </section>
 
       <section className="max-w-xl mx-auto px-6 pb-16">
         <div className="bg-white/80 rounded-3xl shadow-xl p-6 sm:p-8 backdrop-blur">
-          <IngredientForm />
+          <LandingForm />
         </div>
         <p className="text-xs text-center text-slate-500 mt-6">
           Built by Vanessa, Anaya, and Kellen.{" "}
@@ -58,6 +68,13 @@ export default async function Home() {
           </Link>
           .
         </p>
+        {!username && (
+          <p className="text-xs text-center text-slate-500 mt-2">
+            <Link href="/preview-3d" className="underline">
+              Peek at our 3D preview
+            </Link>
+          </p>
+        )}
       </section>
     </main>
   );

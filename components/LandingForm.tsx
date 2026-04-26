@@ -34,14 +34,9 @@ const SLOTS: { key: IngredientSlot; label: string; placeholder: string; helper: 
   },
 ];
 
-const EMPTY: WorldIngredients = {
-  setting: "",
-  character: "",
-  goal: "",
-  twist: "",
-};
+const EMPTY: WorldIngredients = { setting: "", character: "", goal: "", twist: "" };
 
-export function IngredientForm() {
+export function LandingForm() {
   const router = useRouter();
   const [authReady, setAuthReady] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -77,10 +72,7 @@ export function IngredientForm() {
   }
 
   const allFilled =
-    values.setting.trim() &&
-    values.character.trim() &&
-    values.goal.trim() &&
-    values.twist.trim();
+    values.setting.trim() && values.character.trim() && values.goal.trim() && values.twist.trim();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -107,9 +99,7 @@ export function IngredientForm() {
   }
 
   if (authError) {
-    return (
-      <p className="text-red-600">Could not start your session: {authError}</p>
-    );
+    return <p className="text-red-600">Could not start your session: {authError}</p>;
   }
 
   return (
@@ -117,17 +107,10 @@ export function IngredientForm() {
       {SLOTS.map((slot) => (
         <div key={slot.key}>
           <div className="flex items-center justify-between mb-1">
-            <label
-              htmlFor={slot.key}
-              className="block font-semibold text-amber-900"
-            >
+            <label htmlFor={slot.key} className="block font-semibold text-amber-900">
               {slot.label}
             </label>
-            <IdeaButton
-              slot={slot.key}
-              current={values}
-              onPick={(s) => update(slot.key, s)}
-            />
+            <IdeaButton slot={slot.key} current={values} onPick={(s) => update(slot.key, s)} />
           </div>
           <p className="text-xs text-slate-500 mb-2">{slot.helper}</p>
           <input
@@ -143,9 +126,7 @@ export function IngredientForm() {
       ))}
 
       {error && (
-        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">
-          {error}
-        </p>
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">{error}</p>
       )}
 
       <button
@@ -153,15 +134,11 @@ export function IngredientForm() {
         disabled={!authReady || !allFilled || loading}
         className="w-full px-5 py-4 rounded-xl bg-amber-700 text-white font-bold text-lg shadow hover:bg-amber-800 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {loading
-          ? "Shaping your realm..."
-          : authReady
-            ? "Shape my realm"
-            : "Getting ready..."}
+        {loading ? "Shaping your realm..." : authReady ? "Shape my realm" : "Getting ready..."}
       </button>
       {loading && (
         <p className="text-sm text-center text-slate-600">
-          The Oracle is working. This usually takes about 20 seconds.
+          The Oracle is weaving 5 scenes. This usually takes about 10 seconds.
         </p>
       )}
     </form>

@@ -5,17 +5,17 @@ import { serviceRoleSupabase } from "@/lib/supabase-server";
 const BUCKET = "world_audio";
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
 
-export async function ensureAudioForWorld(
+export async function ensureAudioForScene(
   worldId: string,
+  sceneId: string | null,
   audioPrompt: string
 ): Promise<string> {
   const service = serviceRoleSupabase();
-  const objectKey = `${worldId}.mp3`;
+  const objectKey = sceneId ? `${worldId}/${sceneId}.mp3` : `${worldId}.mp3`;
 
   const { data: existing } = await service.storage
     .from(BUCKET)
     .createSignedUrl(objectKey, SIGNED_URL_TTL_SECONDS);
-
   if (existing?.signedUrl) {
     return existing.signedUrl;
   }

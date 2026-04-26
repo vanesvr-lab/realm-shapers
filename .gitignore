@@ -49,3 +49,11 @@ coverage/
 
 # Local kid-asset uploads (raw files, not committed)
 docs/kid-assets/raw/
+
+# Quaternius kit source files we don't ship at runtime
+public/3d/kit/**/Blends/
+public/3d/kit/**/FBX/
+public/3d/kit/**/OBJ/
+public/3d/kit/**/2D/
+public/3d/kit/**/Tutorial.jpg
+public/3d/kit/.DS_Store

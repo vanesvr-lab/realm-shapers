@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serverSupabase } from "@/lib/supabase-server";
-import { ensureAudioForWorld } from "@/lib/world-audio";
+import { ensureAudioForScene } from "@/lib/world-audio";
+import type { StoryScene, StoryTree } from "@/lib/claude";
 
 export async function POST(req: NextRequest) {
   const supabase = serverSupabase();
@@ -11,36 +12,50 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
+  type Body = { world_id?: string; scene_id?: string; audio_prompt?: string };
+  let body: Body;
   try {
-    const body = (await req.json()) as { world_id?: string };
-    const worldId = body.world_id;
-    if (!worldId) {
-      return NextResponse.json({ error: "world_id required" }, { status: 400 });
-    }
+    body = (await req.json()) as Body;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const worldId = body.world_id;
+  if (!worldId) {
+    return NextResponse.json({ error: "world_id required" }, { status: 400 });
+  }
 
-    const { data: world, error: worldError } = await supabase
-      .from("worlds")
-      .select("id, audio_prompt")
-      .eq("id", worldId)
-      .maybeSingle();
+  const { data: world, error: worldError } = await supabase
+    .from("worlds")
+    .select("id, audio_prompt, map")
+    .eq("id", worldId)
+    .maybeSingle<{ id: string; audio_prompt: string | null; map: StoryTree | null }>();
 
-    if (worldError) {
-      return NextResponse.json(
-        { error: `Lookup failed: ${worldError.message}` },
-        { status: 500 }
-      );
-    }
-    if (!world) {
-      return NextResponse.json({ error: "World not found" }, { status: 404 });
-    }
-    if (!world.audio_prompt) {
-      return NextResponse.json(
-        { error: "World has no audio_prompt" },
-        { status: 400 }
-      );
-    }
+  if (worldError) {
+    return NextResponse.json(
+      { error: `Lookup failed: ${worldError.message}` },
+      { status: 500 }
+    );
+  }
+  if (!world) {
+    return NextResponse.json({ error: "World not found" }, { status: 404 });
+  }
 
-    const url = await ensureAudioForWorld(world.id, world.audio_prompt);
+  let prompt = body.audio_prompt?.trim() ?? "";
+  let sceneId = body.scene_id ?? null;
+  if (!prompt && sceneId && world.map) {
+    const scene = world.map.scenes?.find((s: StoryScene) => s.id === sceneId);
+    if (scene) prompt = scene.ambient_audio_prompt;
+  }
+  if (!prompt) {
+    prompt = world.audio_prompt ?? "";
+    sceneId = null;
+  }
+  if (!prompt) {
+    return NextResponse.json({ error: "No audio prompt available" }, { status: 400 });
+  }
+
+  try {
+    const url = await ensureAudioForScene(world.id, sceneId, prompt);
     return NextResponse.json({ url });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

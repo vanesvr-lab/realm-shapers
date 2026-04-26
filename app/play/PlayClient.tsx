@@ -1,109 +1,70 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import type { WorldMap as WorldMapType } from "@/lib/claude";
-import { WorldMap } from "@/components/WorldMap";
-import { AudioPlayer } from "@/components/AudioPlayer";
+import type { StoryTree } from "@/lib/claude";
+import { SceneEditor } from "@/components/SceneEditor";
+import { StoryPlayer } from "@/components/StoryPlayer";
 import { SaveYourWorldsModal } from "@/components/SaveYourWorldsModal";
 
 export function PlayClient({
   worldId,
   title,
   narration,
-  map,
-  audioUrl: initialAudioUrl,
+  story,
 }: {
   worldId: string;
   title: string;
   narration: string;
-  map: WorldMapType;
-  audioUrl: string | null;
+  story: StoryTree;
 }) {
-  const [started, setStarted] = useState(false);
-  const [done, setDone] = useState(false);
+  const [mode, setMode] = useState<"edit" | "play">("edit");
   const [showSave, setShowSave] = useState(false);
-  const [audioUrl, setAudioUrl] = useState<string | null>(initialAudioUrl);
-  const [audioError, setAudioError] = useState<string | null>(null);
-  const [audioLoading, setAudioLoading] = useState(false);
-
-  async function handlePlay() {
-    setStarted(true);
-    if (audioUrl) return;
-    setAudioLoading(true);
-    setAudioError(null);
-    try {
-      const res = await fetch("/api/audio", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ world_id: worldId }),
-      });
-      const data = await res.json();
-      if (res.ok && data.url) {
-        setAudioUrl(data.url);
-      } else {
-        setAudioError(data.error ?? "No audio");
-      }
-    } catch (err) {
-      setAudioError(String(err));
-    } finally {
-      setAudioLoading(false);
-    }
-  }
 
   return (
-    <main className="min-h-screen p-4 sm:p-8 max-w-3xl mx-auto">
-      <header className="mb-6">
-        <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 mb-2 text-balance">
-          {title}
-        </h1>
-        <p className="text-base sm:text-lg leading-relaxed text-slate-700">
-          {narration}
-        </p>
-      </header>
-
-      <WorldMap map={map} started={started} onComplete={() => setDone(true)} />
-
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        {!started && (
-          <button
-            onClick={handlePlay}
-            className="px-5 py-3 rounded-xl bg-amber-700 text-white font-bold hover:bg-amber-800"
-          >
-            ▶ Play
-          </button>
-        )}
-        {started && audioUrl && (
-          <AudioPlayer
-            src={audioUrl}
-            playing={started && !done}
-            onError={(msg) => setAudioError(msg)}
-          />
-        )}
-        {audioLoading && (
-          <p className="text-sm text-slate-500">Loading soundscape...</p>
-        )}
-        {audioError && (
-          <p className="text-sm text-amber-700">
-            Soundscape unavailable: {audioError}
-          </p>
-        )}
-      </div>
-
-      {done && (
-        <div className="mt-8 flex flex-wrap gap-3">
+    <main className="min-h-screen bg-gradient-to-b from-amber-50 to-rose-50 p-3 sm:p-6">
+      <header className="max-w-5xl mx-auto mb-4 flex flex-wrap items-center gap-3 justify-between">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-amber-900 text-balance">{title}</h1>
+          <p className="text-xs uppercase tracking-widest text-amber-700">Edit mode</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
           <Link
-            href="/"
-            className="px-5 py-3 rounded-xl bg-amber-700 text-white font-bold hover:bg-amber-800"
+            href="/preview-3d"
+            className="px-3 py-2 rounded-lg bg-emerald-100 text-emerald-900 text-sm font-semibold hover:bg-emerald-200"
           >
-            Make another
+            🎮 Try our 3D preview
           </Link>
           <button
+            type="button"
             onClick={() => setShowSave(true)}
-            className="px-5 py-3 rounded-xl bg-emerald-700 text-white font-bold hover:bg-emerald-800"
+            className="px-3 py-2 rounded-lg bg-amber-100 text-amber-900 text-sm font-semibold hover:bg-amber-200"
           >
             Save your worlds
           </button>
+          <Link
+            href="/"
+            className="px-3 py-2 rounded-lg bg-slate-100 text-slate-800 text-sm font-semibold hover:bg-slate-200"
+          >
+            Make another
+          </Link>
         </div>
+      </header>
+
+      <div className="max-w-5xl mx-auto">
+        <SceneEditor
+          worldId={worldId}
+          story={story}
+          initialNarration={narration || story.scenes[0].narration}
+          onPlay={() => setMode("play")}
+        />
+      </div>
+
+      {mode === "play" && (
+        <StoryPlayer
+          worldId={worldId}
+          story={story}
+          onExit={() => setMode("edit")}
+        />
       )}
 
       <SaveYourWorldsModal open={showSave} onClose={() => setShowSave(false)} />

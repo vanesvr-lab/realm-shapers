@@ -11,6 +11,9 @@ import { SceneEditor } from "@/components/SceneEditor";
 import { StoryPlayer, type GameplayEvent } from "@/components/StoryPlayer";
 import { SaveYourWorldsModal } from "@/components/SaveYourWorldsModal";
 import { AchievementToast } from "@/components/AchievementToast";
+import type { FlagState } from "@/lib/flags";
+import { setFlag } from "@/lib/flags";
+import { flagTitleSuffix } from "@/lib/flag-titles";
 
 const CeremonyReveal = dynamic(
   () => import("@/components/CeremonyReveal").then((m) => m.CeremonyReveal),
@@ -58,8 +61,45 @@ export function PlayClient({
   const [completion, setCompletion] = useState<{
     endingScene: StoryScene;
     rarityInputs: RarityInputs;
+    flagSuffix: string | null;
   } | null>(null);
   const [toastQueue, setToastQueue] = useState<AchievementDef[]>(initialUnlocked);
+  const flagsKey = `realm-shapers:flags:${worldId}`;
+  const [flags, setFlags] = useState<FlagState>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = sessionStorage.getItem(flagsKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (parsed && typeof parsed === "object") {
+          const out: FlagState = {};
+          for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+            if (typeof v === "boolean") out[k] = v;
+          }
+          return out;
+        }
+      }
+    } catch {
+      // ignore corrupted state
+    }
+    return {};
+  });
+
+  // Persist flag state per world so refresh mid-playthrough resumes; clear
+  // any other world's flags on entry. Switching worlds (different worldId)
+  // remounts this component and starts with that world's stored flags only.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      sessionStorage.setItem(flagsKey, JSON.stringify(flags));
+    } catch {
+      // ignore quota
+    }
+  }, [flagsKey, flags]);
+
+  const handleSetFlag = useCallback((id: string, value: boolean) => {
+    setFlags((prev) => setFlag(prev, id, value));
+  }, []);
 
   // Pull any unlocks the landing form stashed (from /api/generate response).
   useEffect(() => {
@@ -134,12 +174,32 @@ export function PlayClient({
       secretDiscovered: payload.secretDiscovered,
       ingredients,
     };
-    setCompletion({ endingScene: payload.endingScene, rarityInputs });
+    setCompletion({
+      endingScene: payload.endingScene,
+      rarityInputs,
+      flagSuffix: flagTitleSuffix(flags),
+    });
   }
 
   function handleExitPlay() {
     setMode("edit");
     setCompletion(null);
+  }
+
+  function handleReplay() {
+    // Replay clears the flag state for this world so endings can diverge on
+    // a fresh run. Inventory and visited-scenes already reset by virtue of
+    // StoryPlayer remounting.
+    setFlags({});
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem(flagsKey);
+      } catch {
+        // ignore
+      }
+    }
+    setCompletion(null);
+    setMode("edit");
   }
 
   // Fire greeting on first edit-mode mount when not coming straight from ceremony.
@@ -205,6 +265,8 @@ export function PlayClient({
         <StoryPlayer
           worldId={worldId}
           story={story}
+          flags={flags}
+          onSetFlag={handleSetFlag}
           onExit={handleExitPlay}
           onComplete={handlePlayerComplete}
           onEvent={checkAchievements}
@@ -234,8 +296,16 @@ export function PlayClient({
                 ingredients={ingredients}
                 rarityInputs={completion.rarityInputs}
                 username={username}
+                flagTitleSuffix={completion.flagSuffix}
               />
               <div className="flex flex-wrap gap-2 justify-center">
+                <button
+                  type="button"
+                  onClick={handleReplay}
+                  className="px-4 py-3 rounded-xl bg-rose-100 text-rose-900 font-semibold hover:bg-rose-200"
+                >
+                  Play again
+                </button>
                 <button
                   type="button"
                   onClick={handleExitPlay}

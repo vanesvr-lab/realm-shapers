@@ -22,6 +22,7 @@ export function RealmCard({
   ingredients,
   rarityInputs,
   username,
+  flagTitleSuffix,
 }: {
   title: string;
   story: StoryTree;
@@ -29,7 +30,9 @@ export function RealmCard({
   ingredients: WorldIngredients;
   rarityInputs: RarityInputs;
   username?: string | null;
+  flagTitleSuffix?: string | null;
 }) {
+  const displayTitle = flagTitleSuffix ? `${title}, ${flagTitleSuffix}` : title;
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [downloading, setDownloading] = useState(false);
   const rarity: Rarity = calculateRarity(rarityInputs);
@@ -103,7 +106,7 @@ export function RealmCard({
             className="px-4 text-center text-2xl font-extrabold text-amber-950 leading-tight text-balance"
             style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
           >
-            {title}
+            {displayTitle}
           </h2>
 
           <div className="relative mx-4 mt-3 rounded-xl overflow-hidden ring-1 ring-amber-300 shadow-inner" style={{ height: 200 }}>

@@ -6,12 +6,15 @@ import {
   ASSETS_BY_ID,
   assetUrlById,
 } from "@/lib/asset-library";
-import type { StoryScene, StoryTree } from "@/lib/claude";
+import type { ChoiceOption, StoryScene, StoryTree } from "@/lib/claude";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { Interactable } from "@/components/Interactable";
 import { InventoryBar } from "@/components/InventoryBar";
 import { OracleSpeaks } from "@/components/OracleSpeaks";
+import { ChoiceMoment } from "@/components/ChoiceMoment";
 import { speakOracle } from "@/lib/oracle-bus";
+import type { FlagState } from "@/lib/flags";
+import { resolveScene, selectEnding } from "@/lib/scene-resolver";
 
 export type GameplayEvent =
   | { kind: "scene_visited"; world_id: string; scene_id: string; background_id: string }
@@ -19,7 +22,9 @@ export type GameplayEvent =
   | { kind: "world_completed"; world_id: string; character_id: string; secret_discovered: boolean }
   | { kind: "side_quest_completed"; world_id: string; scene_id: string }
   | { kind: "secret_ending_discovered"; world_id: string }
-  | { kind: "summon_used"; world_id: string; prop_id: string; matched: boolean };
+  | { kind: "summon_used"; world_id: string; prop_id: string; matched: boolean }
+  | { kind: "choice_made"; world_id: string; scene_id: string; flag_id: string }
+  | { kind: "world_completed_with_ending"; world_id: string; ending_scene_id: string };
 
 type CompletionPayload = {
   endingScene: StoryScene;
@@ -46,12 +51,16 @@ const PICKUP_POSITIONS: React.CSSProperties[] = [
 export function StoryPlayer({
   worldId,
   story,
+  flags,
+  onSetFlag,
   onExit,
   onComplete,
   onEvent,
 }: {
   worldId: string;
   story: StoryTree;
+  flags: FlagState;
+  onSetFlag: (id: string, value: boolean) => void;
   onExit: () => void;
   onComplete?: (payload: CompletionPayload) => void;
   onEvent?: (event: GameplayEvent) => void;
@@ -65,11 +74,13 @@ export function StoryPlayer({
   const [summonsUsed, setSummonsUsed] = useState(0);
   const [recentlySummonedId, setRecentlySummonedId] = useState<string | null>(null);
   const sideQuestsFired = useRef<Set<string>>(new Set());
+  const flagsExitedFor = useRef<Set<string>>(new Set());
 
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
   const audioCache = useRef<Record<string, string>>({});
   const completedRef = useRef(false);
+  const endingRedirectedRef = useRef(false);
 
   const sceneById = useMemo(() => {
     const m = new Map<string, StoryScene>();
@@ -79,11 +90,13 @@ export function StoryPlayer({
   }, [story]);
 
   const scene = sceneById.get(sceneId) ?? story.scenes[0];
-  const isEnding = scene.choices.length === 0;
+  const isChoiceScene = scene.is_choice_scene === true;
+  const isEnding = !isChoiceScene && scene.choices.length === 0;
   const isSideQuestScene = scene.is_side_quest === true;
   const charUrl = assetUrlById(story.default_character_id);
   const charMeta = ASSETS_BY_ID[story.default_character_id];
   const bgUrl = assetUrlById(scene.background_id);
+  const resolved = useMemo(() => resolveScene(scene, flags), [scene, flags]);
 
   const totalPickups = useMemo(() => {
     const all = new Set<string>();
@@ -201,11 +214,29 @@ export function StoryPlayer({
       return;
     }
 
+    // B-009 ending divergence: if this is not a secret ending and the tree
+    // declares an endings list, swap to the flag-resolved ending. Skip when
+    // already on the resolved ending or after one redirect to avoid loops.
+    const isOnSecret = !!story.secret_ending && sceneId === story.secret_ending.id;
+    if (!isOnSecret && story.endings && story.endings.length > 0 && !endingRedirectedRef.current) {
+      endingRedirectedRef.current = true;
+      const target = selectEnding(story.endings, flags);
+      if (target && target !== sceneId && sceneById.has(target)) {
+        setSceneId(target);
+        setVisited((v) => {
+          if (v.has(target)) return v;
+          const next = new Set(v);
+          next.add(target);
+          return next;
+        });
+        return;
+      }
+    }
+
     completedRef.current = true;
     const finalScene = sceneById.get(sceneId) ?? scene;
     const visitedArr = Array.from(visited);
     const pickupsArr = inventory;
-    const isOnSecret = !!story.secret_ending && sceneId === story.secret_ending.id;
     const finalSecret = secretDiscovered || isOnSecret;
     speakOracle({
       text: isOnSecret
@@ -226,6 +257,15 @@ export function StoryPlayer({
         character_id: story.default_character_id,
         secret_discovered: finalSecret,
       });
+      // Only count regular endings toward the per-world ending log. The
+      // secret ending has its own dedicated achievement track.
+      if (!finalSecret) {
+        onEvent({
+          kind: "world_completed_with_ending",
+          world_id: worldId,
+          ending_scene_id: sceneId,
+        });
+      }
     }
     onComplete?.({
       endingScene: finalScene,
@@ -241,7 +281,9 @@ export function StoryPlayer({
     scene,
     sceneById,
     story.secret_ending,
+    story.endings,
     story.default_character_id,
+    flags,
     visited,
     inventory,
     totalPickups,
@@ -252,6 +294,11 @@ export function StoryPlayer({
   ]);
 
   function visitScene(nextId: string) {
+    // Fire the leaving scene's flag_set implicitly. Per-scene fired-once.
+    if (scene.flag_set && !flagsExitedFor.current.has(scene.id)) {
+      flagsExitedFor.current.add(scene.id);
+      onSetFlag(scene.flag_set, true);
+    }
     setSceneId(nextId);
     setVisited((v) => {
       if (v.has(nextId)) return v;
@@ -277,6 +324,21 @@ export function StoryPlayer({
       return;
     }
     visitScene(choice.next_scene_id);
+  }
+
+  function handleChoice(opt: ChoiceOption) {
+    onSetFlag(opt.sets_flag, true);
+    speakOracle({
+      text: `You chose: ${opt.label.toLowerCase()}.`,
+      kind: "discovery",
+    });
+    onEvent?.({
+      kind: "choice_made",
+      world_id: worldId,
+      scene_id: scene.id,
+      flag_id: opt.sets_flag,
+    });
+    visitScene(opt.goes_to);
   }
 
   function pickup(propId: string) {
@@ -375,7 +437,7 @@ export function StoryPlayer({
               </motion.div>
             )}
 
-            {scene.default_props.map((propId, i) => {
+            {resolved.props.map((propId, i) => {
               const url = assetUrlById(propId);
               const meta = ASSETS_BY_ID[propId];
               if (!url || !meta) return null;
@@ -387,7 +449,7 @@ export function StoryPlayer({
               const pos = offsets[i] ?? offsets[0];
               return (
                 <motion.div
-                  key={`${scene.id}-prop-${i}`}
+                  key={`${scene.id}-prop-${i}-${propId}`}
                   initial={{ opacity: 0, scale: 0.92 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.3 + i * 0.08, duration: 0.4 }}
@@ -448,8 +510,13 @@ export function StoryPlayer({
               );
             })}
 
+            {/* Choice scene fork: two-button moment in place of normal interactables */}
+            {isChoiceScene && resolved.choice_options && (
+              <ChoiceMoment options={resolved.choice_options} onChoose={handleChoice} />
+            )}
+
             {/* Choices: clickable scene-advance interactables */}
-            {!isEnding &&
+            {!isEnding && !isChoiceScene &&
               scene.choices.map((choice, i) => {
                 const required = choice.requires ?? [];
                 const missing = required.filter((r) => !inventory.includes(r));
@@ -529,11 +596,15 @@ export function StoryPlayer({
                 </span>
               )}
             </div>
-            <p className="text-base sm:text-lg text-slate-800 leading-relaxed">{scene.narration}</p>
+            <p className="text-base sm:text-lg text-slate-800 leading-relaxed">{resolved.narration}</p>
           </motion.div>
         </AnimatePresence>
 
-        {!isEnding ? (
+        {isChoiceScene ? (
+          <p className="text-center text-amber-50/85 text-xs sm:text-sm">
+            A moment of choice. Pick a path.
+          </p>
+        ) : !isEnding ? (
           <p className="text-center text-amber-50/85 text-xs sm:text-sm">
             Tap a glowing thing to explore. {scene.choices.length} ways forward.
           </p>
@@ -546,7 +617,7 @@ export function StoryPlayer({
 
       {/* Oracle narrates each scene's first sentence on entry. */}
       <OracleSpeaks
-        text={firstSentence(scene.narration)}
+        text={firstSentence(resolved.narration)}
         kind="scene_intro"
         triggerKey={scene.id}
         delayMs={400}

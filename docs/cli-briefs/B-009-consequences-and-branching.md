@@ -98,7 +98,7 @@ create table world_endings (
 );
 ```
 
-Migration `0005_world_endings.sql` adds this with RLS. Server inserts one row per (user, world, ending) combination on world_completed event.
+Migration `0006_world_endings.sql` adds this with RLS. Server inserts one row per (user, world, ending) combination on world_completed event.
 
 ## Files
 
@@ -107,7 +107,7 @@ Migration `0005_world_endings.sql` adds this with RLS. Server inserts one row pe
 - `lib/scene-resolver.ts` — pure resolver for variants and ending selection
 - `lib/flag-titles.ts` — small lookup table from common flag ids to RealmCard title suffixes
 - `components/ChoiceMoment.tsx` — two-button fork UI
-- `supabase/migrations/0005_world_endings.sql` — log table for ending discoveries
+- `supabase/migrations/0006_world_endings.sql` — log table for ending discoveries
 
 ### Modified
 - `lib/claude.ts` — schema additions + prompt update + parser validation
@@ -154,7 +154,7 @@ Migration `0005_world_endings.sql` adds this with RLS. Server inserts one row pe
 - Ending selector picks correct ending based on flag combo at finale
 - RealmCard shows flag-derived title suffix when applicable
 - Three new achievements unlock from real gameplay
-- Migration 0005 applied; world_endings table tracked
+- Migration 0006 applied; world_endings table tracked
 - All builds clean, deployed, MORNING_CHECKLIST_009.md written, pushed
 
 ## Effort Estimate

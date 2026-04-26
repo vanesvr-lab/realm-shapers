@@ -41,6 +41,32 @@ export type StoryChoice = {
   requires?: string[];
 };
 
+export type StoryFlag = {
+  id: string;
+  description: string;
+};
+
+export type StoryEnding = {
+  scene_id: string;
+  requires: Record<string, boolean>;
+};
+
+export type NarrationVariant = {
+  when: Record<string, boolean>;
+  text: string;
+};
+
+export type PropOverride = {
+  when: Record<string, boolean>;
+  props: string[];
+};
+
+export type ChoiceOption = {
+  label: string;
+  sets_flag: string;
+  goes_to: string;
+};
+
 export type StoryScene = {
   id: string;
   title: string;
@@ -51,6 +77,11 @@ export type StoryScene = {
   pickups: string[];
   choices: StoryChoice[];
   is_side_quest?: boolean;
+  flag_set?: string;
+  narration_variants?: NarrationVariant[];
+  prop_overrides?: PropOverride[];
+  is_choice_scene?: boolean;
+  choice_options?: ChoiceOption[];
 };
 
 export type StoryTree = {
@@ -59,6 +90,11 @@ export type StoryTree = {
   default_character_id: string;
   scenes: StoryScene[];
   secret_ending?: StoryScene;
+  // Required at generation time; optional on read because pre-B-009 worlds in
+  // the DB do not have these fields. Resolver and selector treat undefined as
+  // "no flags / no branching endings".
+  flags?: StoryFlag[];
+  endings?: StoryEnding[];
 };
 
 export type GeneratedWorld = {
@@ -70,13 +106,13 @@ export async function generateWorld(
   ingredients: WorldIngredients
 ): Promise<GeneratedWorld> {
   try {
-    const text = await callClaude(buildStoryPrompt(ingredients), 5120);
+    const text = await callClaude(buildStoryPrompt(ingredients), 6144);
     const story = parseStoryResponse(text);
     return { title: story.title, story };
   } catch (firstErr) {
     console.error("StoryTree generation failed once, retrying", firstErr);
     try {
-      const text = await callClaude(buildStoryPrompt(ingredients), 5120);
+      const text = await callClaude(buildStoryPrompt(ingredients), 6144);
       const story = parseStoryResponse(text);
       return { title: story.title, story };
     } catch (secondErr) {
@@ -169,7 +205,7 @@ async function callClaude(prompt: string, maxTokens: number): Promise<string> {
 }
 
 function buildStoryPrompt(i: WorldIngredients): string {
-  return `You are the Oracle in a creative game called Realm Shapers. A young player (around age 11) gives you four ingredients. You craft a longer point-and-click adventure for them.
+  return `You are the Oracle in a creative game called Realm Shapers. A young player (around age 11) gives you four ingredients. You craft a longer point-and-click adventure for them where their choices matter.
 
 Ingredients:
 - Setting: ${i.setting}
@@ -177,30 +213,51 @@ Ingredients:
 - Goal: ${i.goal}
 - Twist: ${i.twist}
 
-You must compose a longer branching story tree of 8 to 10 scenes total:
-- 5 to 7 main path scenes that move toward 1 to 3 endings.
+You must compose a branching story tree of 8 to 10 scenes total:
+- 5 to 7 main path scenes that move toward 2 to 3 endings.
 - 2 to 3 side quest scenes that branch off the main path. Each side quest scene MUST set "is_side_quest": true. A side quest gives the player a reward (a unique pickup or a special moment) and then either points back to the main path or leads to the secret ending.
-- 1 to 3 of the scenes (main or side quest) are endings: their "choices" array is empty.
+- 2 to 3 of the scenes are endings: their "choices" array is empty.
 
-In play mode the kid clicks objects in each scene to advance. Each choice you write becomes a clickable interactable. Choose its kind from: "door" (a doorway, gate, archway), "chest" (a container, box, lock), "path" (a road, trail, opening), "sparkle" (a glowing object, twinkle), "creature" (a friendly being to talk to).
+In play mode the kid clicks objects in each scene to advance. Each choice you write becomes a clickable interactable. Choose its kind from: "door", "chest", "path", "sparkle", "creature".
 
-Some scenes give the player items to collect via a "pickups" list. A later choice can require those items. Across the whole tree, generate 3 to 5 pickups total and at most 2 to 3 choices that have a "requires" field. A "requires" entry MUST match a prop id that appears as a pickup somewhere earlier in the tree. Side quest scenes are a great place to grant unique pickups.
+Pickups: some scenes give the player items via a "pickups" list. A later choice can require those items. Across the whole tree, 3 to 5 total pickups, at most 2 to 3 choices with a "requires" field. A "requires" entry MUST match a prop id that appears as a pickup somewhere earlier.
 
-You must reference assets ONLY from the curated library below. Do NOT invent new ids.
+CONSEQUENCES (this is new). The kid's earlier actions ripple forward. You make this happen with named flags, narration variants, prop overrides, choice scenes, and conditional endings.
+
+1. Define 3 to 5 named flags up front in the top-level "flags" array. Each flag is story-specific (snake_case id, e.g. "tamed_dragon", "helped_villager", "chose_secret_path"). Give each a one-sentence description. These are the only flag ids you may reference anywhere else.
+
+2. Implicit flag setting. On 1 to 3 scenes (typically side quest scenes or scenes with a pickup), set "flag_set" to one of the flag ids. The flag fires silently when the kid leaves that scene.
+
+3. Explicit choice scenes. Mark 1 to 2 mid or late scenes (NEVER the first scene, NEVER an ending) with "is_choice_scene": true. A choice scene's normal "choices" array MUST be empty. Instead it has "choice_options": exactly two entries, each with { "label": "2 to 6 words", "sets_flag": "<flag id>", "goes_to": "<scene id>" }. The two choice_options MUST set DIFFERENT flag ids and SHOULD route to different scenes when possible.
+
+4. Narration variants. On 1 to 3 mid or late scenes, add "narration_variants": an ordered list of { "when": { "<flag_id>": true }, "text": "..." } entries. The first variant whose "when" all match the player's flag state wins; if none match, the base "narration" plays. Use these to acknowledge what the kid did earlier ("the dragon's kin greets you at the cave mouth").
+
+5. Prop overrides. On up to 3 mid or late scenes (NEVER the first scene), add "prop_overrides": an ordered list of { "when": { "<flag_id>": true }, "props": [ "prop_id", ... ] }. Same matching rule. Replaces default_props when matched. Use this for visible scene changes (a broken bridge becomes a mended bridge by swapping props).
+
+6. Endings. The top-level "endings" array is REQUIRED. 2 to 3 entries, RANKED. Each entry: { "scene_id": "<id of an ending scene>", "requires": { "<flag_id>": true | false } }. The first ending whose "requires" all match wins at finale. The LAST entry MUST have "requires": {} and acts as the fallback. Each scene_id in endings must point to a scene in "scenes" that has empty choices (i.e. an ending scene). The "starting_scene_id" routes only the opening; the ending is chosen at the end of play by flag state.
+
+You must reference assets ONLY from the curated library below.
 
 ALLOWED background_id values: ${BACKGROUND_IDS.join(", ")}
 
 ALLOWED default_character_id values: ${CHARACTER_IDS.join(", ")}
 
-ALLOWED prop ids (for default_props and pickups arrays): ${PROP_IDS.join(", ")}
+ALLOWED prop ids (for default_props, pickups, prop_overrides arrays): ${PROP_IDS.join(", ")}
 
-You must also write a "secret_ending" scene that is hidden from the normal choices. This becomes the player's true ending if they explore everything (visit all scenes or collect all pickups). It uses the same shape as a normal ending scene (no choices) and ties back to the ingredients in a satisfying way.
+You must also write a "secret_ending" scene that is hidden from the normal choices. This becomes the player's true ending if they explore everything (visit all scenes or collect all pickups). Same shape as a normal ending scene (no choices). The secret ending is independent of the "endings" list above (which controls regular ending divergence by flag state).
 
 Respond with ONLY JSON in EXACTLY this shape, no preamble, no markdown, no code fences:
 {
   "title": "string, 2 to 6 words, evocative",
   "starting_scene_id": "snake_case_id_matching_one_scene",
   "default_character_id": "must be one of the allowed character ids",
+  "flags": [
+    { "id": "snake_case_flag_id", "description": "one short sentence about what setting this flag means" }
+  ],
+  "endings": [
+    { "scene_id": "<id of an ending scene>", "requires": { "<flag_id>": true } },
+    { "scene_id": "<id of fallback ending scene>", "requires": {} }
+  ],
   "scenes": [
     {
       "id": "snake_case_id, unique",
@@ -211,6 +268,18 @@ Respond with ONLY JSON in EXACTLY this shape, no preamble, no markdown, no code 
       "default_props": ["0 to 3 prop ids from the allowed list"],
       "pickups": ["0 to 2 prop ids from the allowed list, must NOT also appear in this scene's default_props"],
       "is_side_quest": false,
+      "flag_set": "<optional, a flag id from the flags array>",
+      "narration_variants": [
+        { "when": { "<flag_id>": true }, "text": "alternate narration if these flags match" }
+      ],
+      "prop_overrides": [
+        { "when": { "<flag_id>": true }, "props": ["prop_ids that replace default_props when matched"] }
+      ],
+      "is_choice_scene": false,
+      "choice_options": [
+        { "label": "first option text", "sets_flag": "<flag_id>", "goes_to": "<scene_id>" },
+        { "label": "second option text", "sets_flag": "<other_flag_id>", "goes_to": "<scene_id>" }
+      ],
       "choices": [
         {
           "id": "snake_case_id, unique within this scene",
@@ -238,14 +307,20 @@ Respond with ONLY JSON in EXACTLY this shape, no preamble, no markdown, no code 
 Hard rules:
 - scenes array MUST have between 8 and 10 entries (inclusive).
 - Exactly 2 or 3 of those scenes MUST have "is_side_quest": true. The rest MUST have "is_side_quest": false.
-- starting_scene_id MUST match the id of one main (non side quest) scene.
-- 1 to 3 of the scenes MUST be endings: their choices array is empty.
-- Non-ending scenes MUST have exactly 2 or 3 choices each.
-- Every next_scene_id MUST equal one of the scene ids in this tree (no dangling references).
+- starting_scene_id MUST match the id of one main (non side quest, non choice scene) scene.
+- 2 to 3 of the scenes MUST be endings: their choices array is empty.
+- A non-ending, non-choice scene MUST have exactly 2 or 3 normal "choices" entries.
+- A choice scene (is_choice_scene true) MUST have "choices": [] and exactly 2 "choice_options".
+- An ending scene (no normal choices) MUST NOT also be a choice scene.
+- A choice scene MUST NOT be the starting scene and MUST NOT be an ending.
+- Every next_scene_id, every "goes_to" in choice_options, and every endings.scene_id MUST equal one of the scene ids in this tree.
 - Every background_id, default_character_id, and prop id MUST come from the allowed lists. No new ids, no synonyms.
 - Every interactable_kind MUST be one of: door, chest, path, sparkle, creature.
-- Every "requires" entry, if present, MUST be a prop id that also appears in some scene's pickups array. Skip the "requires" field entirely on choices that have no requirement.
+- Every "requires" entry, if present, MUST be a prop id that appears in some scene's pickups array.
+- Every flag_set, every choice_options.sets_flag, every key in narration_variants.when, prop_overrides.when, and endings.requires MUST be a flag id defined in the top-level "flags" array.
 - pickups for a single scene MUST NOT contain duplicates and must NOT include any id from that same scene's default_props.
+- prop_overrides MUST NOT appear on the starting scene (kid would never see their composition).
+- The "endings" array MUST have at least one entry whose "requires" is the empty object {}, AND that fallback MUST be the LAST entry.
 - The secret_ending field is REQUIRED. Its id MUST be unique and MUST NOT match any of the main scene ids. Its choices array MUST be empty.
 - Each side quest scene MUST be entered from at least one choice in a main path scene; that choice's interactable_kind should typically be "sparkle".
 - ambient_audio_prompt is for ElevenLabs Sound Effects, ambient only (waves, wind, rustling leaves, distant chimes), NEVER music or speech.
@@ -317,7 +392,11 @@ function parseStoryResponse(raw: string): StoryTree {
   if (obj.scenes.length < 8 || obj.scenes.length > 10) {
     throw new Error(`scenes length ${obj.scenes.length} must be between 8 and 10`);
   }
-  const scenes = obj.scenes.map((s, idx) => parseScene(s, idx));
+
+  const flags = parseFlags(obj.flags);
+  const flagIds = new Set(flags.map((f) => f.id));
+
+  const scenes = obj.scenes.map((s, idx) => parseScene(s, idx, flagIds));
   const ids = new Set(scenes.map((s) => s.id));
   if (ids.size !== scenes.length) {
     throw new Error("scene ids are not unique");
@@ -333,10 +412,19 @@ function parseStoryResponse(raw: string): StoryTree {
         );
       }
     }
+    if (scene.choice_options) {
+      for (const co of scene.choice_options) {
+        if (!ids.has(co.goes_to)) {
+          throw new Error(
+            `scene ${scene.id} choice_option goes_to ${co.goes_to} dangling`
+          );
+        }
+      }
+    }
   }
-  const endings = scenes.filter((s) => s.choices.length === 0).length;
-  if (endings < 1) {
-    throw new Error("at least one ending scene required");
+  const endingsCount = scenes.filter((s) => s.choices.length === 0 && !s.is_choice_scene).length;
+  if (endingsCount < 2 || endingsCount > 3) {
+    throw new Error(`ending scene count ${endingsCount} must be between 2 and 3`);
   }
   const sideQuestCount = scenes.filter((s) => s.is_side_quest).length;
   if (sideQuestCount < 2 || sideQuestCount > 3) {
@@ -346,11 +434,31 @@ function parseStoryResponse(raw: string): StoryTree {
   if (startingScene?.is_side_quest) {
     throw new Error("starting_scene_id must not be a side quest");
   }
+  if (startingScene?.is_choice_scene) {
+    throw new Error("starting_scene_id must not be a choice scene");
+  }
+  if (startingScene?.prop_overrides && startingScene.prop_overrides.length > 0) {
+    throw new Error("starting scene must not have prop_overrides");
+  }
+
+  // Choice scenes: must not be endings, must have exactly 2 choice_options.
+  for (const s of scenes) {
+    if (s.is_choice_scene) {
+      if (s.choices.length !== 0) {
+        throw new Error(`choice scene ${s.id} must have empty choices`);
+      }
+      if (!s.choice_options || s.choice_options.length !== 2) {
+        throw new Error(`choice scene ${s.id} must have exactly 2 choice_options`);
+      }
+    }
+  }
+
+  const endings = parseEndings(obj.endings, ids, scenes, flagIds);
 
   let secret_ending: StoryScene | undefined;
   if (obj.secret_ending) {
     try {
-      const parsed = parseScene(obj.secret_ending, 99);
+      const parsed = parseScene(obj.secret_ending, 99, flagIds);
       if (ids.has(parsed.id)) {
         throw new Error("secret_ending id collides with main scene id");
       }
@@ -379,10 +487,99 @@ function parseStoryResponse(raw: string): StoryTree {
     }
   }
 
-  return { title, starting_scene_id, default_character_id, scenes, secret_ending };
+  return {
+    title,
+    starting_scene_id,
+    default_character_id,
+    scenes,
+    secret_ending,
+    flags,
+    endings,
+  };
 }
 
-function parseScene(raw: unknown, idx: number): StoryScene {
+function parseFlags(raw: unknown): StoryFlag[] {
+  if (!Array.isArray(raw)) {
+    throw new Error("flags array is required");
+  }
+  if (raw.length < 3 || raw.length > 5) {
+    throw new Error(`flags length ${raw.length} must be between 3 and 5`);
+  }
+  const out: StoryFlag[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < raw.length; i++) {
+    const f = raw[i];
+    if (!f || typeof f !== "object") throw new Error(`flags[${i}] not an object`);
+    const fo = f as Record<string, unknown>;
+    const id = requireString(fo.id, `flags[${i}].id`);
+    const description = requireString(fo.description, `flags[${i}].description`);
+    if (seen.has(id)) throw new Error(`duplicate flag id ${id}`);
+    seen.add(id);
+    out.push({ id, description });
+  }
+  return out;
+}
+
+function parseEndings(
+  raw: unknown,
+  sceneIds: Set<string>,
+  scenes: StoryScene[],
+  flagIds: Set<string>
+): StoryEnding[] {
+  if (!Array.isArray(raw)) {
+    throw new Error("endings array is required");
+  }
+  if (raw.length < 2 || raw.length > 3) {
+    throw new Error(`endings length ${raw.length} must be between 2 and 3`);
+  }
+  const endingSceneIds = new Set(
+    scenes.filter((s) => s.choices.length === 0 && !s.is_choice_scene).map((s) => s.id)
+  );
+  const out: StoryEnding[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const e = raw[i];
+    if (!e || typeof e !== "object") throw new Error(`endings[${i}] not an object`);
+    const eo = e as Record<string, unknown>;
+    const scene_id = requireString(eo.scene_id, `endings[${i}].scene_id`);
+    if (!sceneIds.has(scene_id)) {
+      throw new Error(`endings[${i}].scene_id ${scene_id} not in scenes`);
+    }
+    if (!endingSceneIds.has(scene_id)) {
+      throw new Error(`endings[${i}].scene_id ${scene_id} is not an ending scene`);
+    }
+    const requires = parseFlagRecord(eo.requires, flagIds, `endings[${i}].requires`);
+    out.push({ scene_id, requires });
+  }
+  // Last entry MUST be the fallback (empty requires).
+  const last = out[out.length - 1];
+  if (Object.keys(last.requires).length !== 0) {
+    throw new Error("endings: last entry must be the fallback with empty requires");
+  }
+  return out;
+}
+
+function parseFlagRecord(
+  raw: unknown,
+  flagIds: Set<string>,
+  field: string
+): Record<string, boolean> {
+  if (!raw || typeof raw !== "object") {
+    throw new Error(`${field} must be an object`);
+  }
+  const out: Record<string, boolean> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!flagIds.has(k)) {
+      throw new Error(`${field} references unknown flag ${k}`);
+    }
+    if (typeof v !== "boolean") {
+      throw new Error(`${field}.${k} must be boolean`);
+    }
+    out[k] = v;
+  }
+  return out;
+}
+
+function parseScene(raw: unknown, idx: number, flagIds?: Set<string>): StoryScene {
   if (!raw || typeof raw !== "object") {
     throw new Error(`scene ${idx} not an object`);
   }
@@ -405,7 +602,9 @@ function parseScene(raw: unknown, idx: number): StoryScene {
   }
   const choices = choices_raw.map((c, ci) => parseChoice(c, idx, ci));
   const is_side_quest = s.is_side_quest === true;
-  return {
+  const is_choice_scene = s.is_choice_scene === true;
+
+  const out: StoryScene = {
     id,
     title,
     narration,
@@ -416,6 +615,87 @@ function parseScene(raw: unknown, idx: number): StoryScene {
     choices,
     is_side_quest,
   };
+
+  if (is_choice_scene) {
+    out.is_choice_scene = true;
+  }
+
+  if (flagIds) {
+    if (typeof s.flag_set === "string" && s.flag_set.trim()) {
+      const fs = s.flag_set.trim();
+      if (!flagIds.has(fs)) {
+        throw new Error(`scene[${idx}].flag_set references unknown flag ${fs}`);
+      }
+      out.flag_set = fs;
+    }
+
+    if (Array.isArray(s.narration_variants) && s.narration_variants.length > 0) {
+      const variants: NarrationVariant[] = [];
+      for (let i = 0; i < s.narration_variants.length; i++) {
+        const v = s.narration_variants[i];
+        if (!v || typeof v !== "object") {
+          throw new Error(`scene[${idx}].narration_variants[${i}] not an object`);
+        }
+        const vo = v as Record<string, unknown>;
+        const when = parseFlagRecord(
+          vo.when,
+          flagIds,
+          `scene[${idx}].narration_variants[${i}].when`
+        );
+        const text = requireString(vo.text, `scene[${idx}].narration_variants[${i}].text`);
+        variants.push({ when, text });
+      }
+      out.narration_variants = variants;
+    }
+
+    if (Array.isArray(s.prop_overrides) && s.prop_overrides.length > 0) {
+      const overrides: PropOverride[] = [];
+      for (let i = 0; i < s.prop_overrides.length; i++) {
+        const v = s.prop_overrides[i];
+        if (!v || typeof v !== "object") {
+          throw new Error(`scene[${idx}].prop_overrides[${i}] not an object`);
+        }
+        const vo = v as Record<string, unknown>;
+        const when = parseFlagRecord(
+          vo.when,
+          flagIds,
+          `scene[${idx}].prop_overrides[${i}].when`
+        );
+        const props = parsePropList(vo.props, 3);
+        overrides.push({ when, props });
+      }
+      out.prop_overrides = overrides;
+    }
+
+    if (Array.isArray(s.choice_options) && s.choice_options.length > 0) {
+      const options: ChoiceOption[] = [];
+      for (let i = 0; i < s.choice_options.length; i++) {
+        const c = s.choice_options[i];
+        if (!c || typeof c !== "object") {
+          throw new Error(`scene[${idx}].choice_options[${i}] not an object`);
+        }
+        const co = c as Record<string, unknown>;
+        const label = requireString(co.label, `scene[${idx}].choice_options[${i}].label`);
+        const sets_flag = requireString(
+          co.sets_flag,
+          `scene[${idx}].choice_options[${i}].sets_flag`
+        );
+        if (!flagIds.has(sets_flag)) {
+          throw new Error(
+            `scene[${idx}].choice_options[${i}].sets_flag references unknown flag ${sets_flag}`
+          );
+        }
+        const goes_to = requireString(
+          co.goes_to,
+          `scene[${idx}].choice_options[${i}].goes_to`
+        );
+        options.push({ label, sets_flag, goes_to });
+      }
+      out.choice_options = options;
+    }
+  }
+
+  return out;
 }
 
 function parsePropList(raw: unknown, max: number): string[] {
@@ -618,12 +898,25 @@ function defaultStory(i: WorldIngredients): StoryTree {
     choices: [],
   };
 
+  const flags: StoryFlag[] = [
+    { id: "took_lantern_path", description: "The kid followed the dancing lantern into the grove." },
+    { id: "rested_at_river", description: "The kid paused at the river bend." },
+    { id: "found_fountain_star", description: "The kid found the bright fountain's star." },
+  ];
+
+  const endings: StoryEnding[] = [
+    { scene_id: "ending_bright", requires: { found_fountain_star: true } },
+    { scene_id: "ending_calm", requires: {} },
+  ];
+
   return {
     title: "A Realm Half-Shaped",
     starting_scene_id: "threshold",
     default_character_id: "hero_girl",
     scenes: main,
     secret_ending: secret,
+    flags,
+    endings,
   };
 }
 

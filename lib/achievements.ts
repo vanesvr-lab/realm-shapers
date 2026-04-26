@@ -20,7 +20,9 @@ export type CheckEvent =
   | { kind: "side_quest_completed"; world_id: string; scene_id: string }
   | { kind: "secret_ending_discovered"; world_id: string }
   | { kind: "summon_used"; world_id: string; prop_id: string; matched: boolean }
-  | { kind: "world_shared"; world_id: string };
+  | { kind: "world_shared"; world_id: string }
+  | { kind: "choice_made"; world_id: string; scene_id: string; flag_id: string }
+  | { kind: "world_completed_with_ending"; world_id: string; ending_scene_id: string };
 
 type EventRow = {
   kind: string;
@@ -148,6 +150,43 @@ export async function evaluateUnlocks(
     }
   } else if (event.kind === "world_shared") {
     tryUnlock("share_realm", true);
+  } else if (event.kind === "choice_made") {
+    tryUnlock("forked_path", true);
+  } else if (event.kind === "world_completed_with_ending") {
+    // Record this (user, world, ending) combo. Idempotent on the primary key.
+    const { error: insErr } = await supabase
+      .from("world_endings")
+      .upsert(
+        {
+          user_id: userId,
+          world_id: event.world_id,
+          ending_scene_id: event.ending_scene_id,
+        },
+        { onConflict: "user_id,world_id,ending_scene_id", ignoreDuplicates: true }
+      );
+    if (insErr) {
+      console.error("Failed to log world_ending:", insErr.message);
+    }
+
+    // Look up distinct endings per world for this user.
+    const { data: endingsRows } = await supabase
+      .from("world_endings")
+      .select("world_id, ending_scene_id")
+      .eq("user_id", userId);
+    const perWorld = new Map<string, Set<string>>();
+    for (const r of endingsRows ?? []) {
+      const wid = (r as { world_id: string }).world_id;
+      const eid = (r as { ending_scene_id: string }).ending_scene_id;
+      if (!wid || !eid) continue;
+      if (!perWorld.has(wid)) perWorld.set(wid, new Set());
+      perWorld.get(wid)!.add(eid);
+    }
+    let maxEndingsPerWorld = 0;
+    perWorld.forEach((set) => {
+      if (set.size > maxEndingsPerWorld) maxEndingsPerWorld = set.size;
+    });
+    tryUnlock("two_endings", maxEndingsPerWorld >= 2);
+    tryUnlock("all_three_endings", maxEndingsPerWorld >= 3);
   }
 
   if (newlyUnlocked.length === 0) return [];

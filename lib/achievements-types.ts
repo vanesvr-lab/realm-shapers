@@ -8,7 +8,9 @@ export type AchievementTrigger =
   | "side_quest_completed"
   | "secret_ending_discovered"
   | "summon_used"
-  | "world_shared";
+  | "world_shared"
+  | "choice_made"
+  | "world_completed_with_ending";
 
 export type AchievementDef = {
   id: string;
@@ -32,6 +34,9 @@ export const ACHIEVEMENT_DEFS: AchievementDef[] = [
   { id: "summoner", name: "Summoner", description: "Use the summon feature for the first time.", icon: "✨", trigger: "summon_used" },
   { id: "master_summoner", name: "Master Summoner", description: "Successfully summon 10 different props.", icon: "💫", trigger: "summon_used" },
   { id: "share_realm", name: "Storyteller", description: "Share one of your realms.", icon: "📨", trigger: "world_shared" },
+  { id: "forked_path", name: "Forked Path", description: "Make your first explicit choice.", icon: "🔀", trigger: "choice_made" },
+  { id: "two_endings", name: "Two Realms, Two Endings", description: "Finish the same realm with two different endings.", icon: "🪞", trigger: "world_completed_with_ending" },
+  { id: "all_three_endings", name: "All Three Endings", description: "Discover all three endings in any single realm.", icon: "🌈", trigger: "world_completed_with_ending" },
 ];
 
 export const ACHIEVEMENT_DEFS_BY_ID: Record<string, AchievementDef> = Object.fromEntries(

@@ -151,7 +151,7 @@ export function LandingForm() {
       {loading && (
         <div className="space-y-3">
           <p className="text-sm text-center text-slate-600">
-            The Oracle is weaving 5 scenes. This usually takes about 10 seconds.
+            The Oracle is weaving 8 to 10 scenes with side quests. This usually takes about 15 seconds.
           </p>
           <StarTapGame />
         </div>

@@ -24,6 +24,7 @@ export function Interactable({
   label,
   locked,
   hint,
+  sideQuest,
   onActivate,
   positionStyle,
 }: {
@@ -31,6 +32,7 @@ export function Interactable({
   label: string;
   locked: boolean;
   hint?: string;
+  sideQuest?: boolean;
   onActivate: () => void;
   positionStyle: React.CSSProperties;
 }) {
@@ -82,6 +84,14 @@ export function Interactable({
               aria-label="locked"
             >
               🔒
+            </span>
+          )}
+          {sideQuest && (
+            <span
+              className="absolute -top-2 -right-2 z-20 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-fuchsia-300 to-purple-300 text-purple-950 text-[10px] font-bold shadow ring-1 ring-fuchsia-200 whitespace-nowrap"
+              aria-label="side quest"
+            >
+              ✨ side
             </span>
           )}
         </motion.span>

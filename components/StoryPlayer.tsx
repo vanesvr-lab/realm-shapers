@@ -8,6 +8,7 @@ import {
 } from "@/lib/asset-library";
 import type { StoryTree } from "@/lib/claude";
 import { AudioPlayer } from "@/components/AudioPlayer";
+import { InteractiveProp } from "@/components/InteractiveProp";
 
 export function StoryPlayer({
   worldId,
@@ -145,7 +146,13 @@ export function StoryPlayer({
                   className="absolute"
                   style={{ ...pos, width: "min(14vw, 110px)", height: "min(14vw, 110px)" }}
                 >
-                  <Image src={url} alt={meta.alt} fill unoptimized sizes="110px" className="object-contain drop-shadow-lg" />
+                  <InteractiveProp
+                    worldId={worldId}
+                    sceneId={scene.id}
+                    propId={propId}
+                    src={url}
+                    alt={meta.alt}
+                  />
                 </motion.div>
               );
             })}

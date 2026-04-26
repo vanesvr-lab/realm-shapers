@@ -37,4 +37,35 @@ body {
   .animate-fadeIn {
     animation: fadeIn 600ms ease-out both;
   }
+  @keyframes propWiggle {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-8deg); }
+    75% { transform: rotate(8deg); }
+  }
+  .animate-prop-wiggle {
+    animation: propWiggle 0.6s ease-in-out;
+  }
+  @keyframes propGlow {
+    0%, 100% { filter: drop-shadow(0 0 4px rgba(255, 220, 120, 0.4)); }
+    50% { filter: drop-shadow(0 0 22px rgba(255, 230, 140, 1)) drop-shadow(0 0 40px rgba(255, 200, 80, 0.7)); }
+  }
+  .animate-prop-glow {
+    animation: propGlow 1.2s ease-in-out;
+  }
+  @keyframes propOpen {
+    0% { transform: scale(1) rotate(0deg); }
+    35% { transform: scale(1.18) rotate(-6deg); }
+    70% { transform: scale(1.12) rotate(6deg); }
+    100% { transform: scale(1) rotate(0deg); }
+  }
+  .animate-prop-open {
+    animation: propOpen 0.9s ease-in-out;
+  }
+  @keyframes propPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.18); }
+  }
+  .animate-prop-pulse {
+    animation: propPulse 0.7s ease-in-out;
+  }
 }

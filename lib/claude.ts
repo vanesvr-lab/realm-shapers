@@ -80,6 +80,58 @@ export async function generateIdeas(
   return parseIdeasResponse(text);
 }
 
+export type PropAnimation = "wiggle" | "pulse" | "glow" | "open";
+
+export type PropInteractionResult = {
+  narration: string;
+  animation: PropAnimation;
+};
+
+const VALID_PROP_ANIMATIONS: PropAnimation[] = ["wiggle", "pulse", "glow", "open"];
+
+export async function generatePropInteraction(
+  scene: StoryScene,
+  propId: string,
+  propAlt: string
+): Promise<PropInteractionResult> {
+  const prompt = buildPropInteractionPrompt(scene, propId, propAlt);
+  const text = await callClaude(prompt, 256);
+  return parsePropInteractionResponse(text);
+}
+
+function buildPropInteractionPrompt(scene: StoryScene, propId: string, propAlt: string): string {
+  return `You are the Oracle in Realm Shapers. The young player (around age 11) just touched a "${propAlt}" (id: ${propId}) in a scene.
+
+Scene title: ${scene.title}
+Scene narration: ${scene.narration}
+Background: ${scene.background_id}
+
+Reply with a single warm, kid-friendly sentence (under 20 words) describing what happens when the player touches this object in this scene. Stay grounded in the scene tone. No violence, no scary content, no romance.
+
+Pick exactly ONE animation that fits the reaction:
+- "wiggle": object jiggles playfully
+- "pulse": object thumps or breathes with light
+- "glow": object brightens with magical light
+- "open": object opens, unfurls, or reveals something
+
+Respond ONLY with JSON in this exact shape, no preamble, no markdown, no code fences:
+{ "narration": "your one sentence", "animation": "wiggle" | "pulse" | "glow" | "open" }`;
+}
+
+function parsePropInteractionResponse(raw: string): PropInteractionResult {
+  const parsed = JSON.parse(stripFences(raw)) as unknown;
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("prop interaction response not an object");
+  }
+  const obj = parsed as Record<string, unknown>;
+  const narration = requireString(obj.narration, "narration");
+  const anim = obj.animation;
+  if (typeof anim !== "string" || !VALID_PROP_ANIMATIONS.includes(anim as PropAnimation)) {
+    throw new Error(`invalid animation: ${String(anim)}`);
+  }
+  return { narration, animation: anim as PropAnimation };
+}
+
 export async function rewriteSceneNarration(
   scene: StoryScene,
   composition: { character_id: string; prop_ids: string[] }

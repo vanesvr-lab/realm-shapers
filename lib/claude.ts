@@ -220,7 +220,9 @@ You must compose a branching story tree of 8 to 10 scenes total:
 
 In play mode the kid clicks objects in each scene to advance. Each choice you write becomes a clickable interactable. Choose its kind from: "door", "chest", "path", "sparkle", "creature".
 
-Pickups: some scenes give the player items via a "pickups" list. A later choice can require those items. Across the whole tree, 3 to 5 total pickups, at most 2 to 3 choices with a "requires" field. A "requires" entry MUST match a prop id that appears as a pickup somewhere earlier.
+Pickups: some scenes give the player items via a "pickups" list. A later choice can require those items. Across the whole tree, 3 to 5 total pickups, at most 2 to 3 choices with a "requires" field.
+
+PHANTOM-REQUIRES RULE (CRITICAL). Every item id you put inside a choice's "requires" array MUST also appear inside some scene's "pickups" array somewhere in this same tree. The kid must always be able to find every item the game asks for. If you cannot place a pickup, do not gate the choice on it. Trees that reference a required item with no matching pickup will be rejected and you will be asked to retry.
 
 CONSEQUENCES (this is new). The kid's earlier actions ripple forward. You make this happen with named flags, narration variants, prop overrides, choice scenes, and conditional endings.
 
@@ -471,7 +473,11 @@ function parseStoryResponse(raw: string): StoryTree {
     }
   }
 
-  // Soft-validate requires references (warn but do not throw).
+  // Phantom-requires hardening (B-010): every prop id referenced inside a
+  // choice's "requires" array must also appear as a pickup somewhere in the
+  // tree. Kellen's playtest 2026-04-26 surfaced two realms where Claude gated
+  // a choice on an item that did not exist anywhere (hand mirror, brass key)
+  // and stranded the player. Reject the tree so /api/generate retries.
   const allPickupIds = new Set<string>();
   for (const s of scenes) for (const p of s.pickups) allPickupIds.add(p);
   for (const s of scenes) {
@@ -479,8 +485,8 @@ function parseStoryResponse(raw: string): StoryTree {
       if (c.requires) {
         const missing = c.requires.filter((r) => !allPickupIds.has(r));
         if (missing.length > 0) {
-          console.warn(
-            `scene ${s.id} choice ${c.id} requires ${missing.join(", ")} not found in any pickups`
+          throw new Error(
+            `scene ${s.id} choice ${c.id} requires ${missing.join(", ")} which is not defined as a pickup anywhere in the tree`
           );
         }
       }

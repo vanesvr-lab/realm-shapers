@@ -583,6 +583,13 @@ function parseStoryResponse(
   const minScenes = isDeep ? 10 : 8;
   const maxScenes = isDeep ? 12 : 10;
   const requiredChoiceCount = isDeep ? 5 : null; // null = legacy 2-or-3
+  // B-011: theme-driven worlds validate background ids against the picked
+  // theme's sub-scene catalog and enforce adjacency for scenes 2-4. Legacy
+  // worlds (no theme_id in ingredients) keep the asset-library validation.
+  const themeContext = ingredients ? resolveThemeContext(ingredients) : null;
+  const themeSubScenesById: Map<string, SubScene> = themeContext
+    ? new Map(themeContext.theme.sub_scenes.map((s) => [s.id, s]))
+    : new Map();
   const parsed = JSON.parse(stripFences(raw)) as unknown;
   if (!parsed || typeof parsed !== "object") {
     throw new Error("Story response is not an object");
@@ -614,7 +621,9 @@ function parseStoryResponse(
   const flags = parseFlags(obj.flags);
   const flagIds = new Set(flags.map((f) => f.id));
 
-  const scenes = obj.scenes.map((s, idx) => parseScene(s, idx, flagIds, requiredChoiceCount));
+  const scenes = obj.scenes.map((s, idx) =>
+    parseScene(s, idx, flagIds, requiredChoiceCount, themeSubScenesById)
+  );
   const ids = new Set(scenes.map((s) => s.id));
   if (ids.size !== scenes.length) {
     throw new Error("scene ids are not unique");
@@ -695,12 +704,72 @@ function parseStoryResponse(
     }
   }
 
+  // B-011 scope 7: theme adjacency + entry lock + ending sub-scene
+  // validation. Each rule is enforced only when the world is theme-driven
+  // (themeContext set from ingredients).
+  if (themeContext) {
+    // Scene 1 (the kid's picked entry) must use the entry sub-scene id. We
+    // anchor by index 0 — the prompt enforces starting_scene_id is at idx 0
+    // or 1, but for the entry-lock semantics it makes sense to lock the
+    // FIRST scene the kid lands on, which is the one matching
+    // starting_scene_id.
+    const startingScene = scenes.find((s) => s.id === starting_scene_id);
+    if (!startingScene) {
+      throw new Error(`starting scene ${starting_scene_id} not found in scenes`);
+    }
+    if (startingScene.background_id !== themeContext.entrySubScene.id) {
+      throw new Error(
+        `starting scene ${startingScene.id} background_id must equal entry sub-scene ${themeContext.entrySubScene.id} (got ${startingScene.background_id})`
+      );
+    }
+
+    // Adjacency for scenes at indices 2, 3, 4: each must appear in the
+    // previous scene's library connects_to. Indices 0 and 1 are the
+    // exploration scenes anchored to the entry; index 0's background is
+    // the entry sub-scene itself, and index 1 is allowed to be any
+    // sub-scene in the theme so the second scene has flexibility.
+    for (let idx = 2; idx <= 4 && idx < scenes.length; idx++) {
+      const prev = scenes[idx - 1];
+      const here = scenes[idx];
+      const prevSub = themeSubScenesById.get(prev.background_id);
+      if (!prevSub) {
+        throw new Error(
+          `scene[${idx - 1}] background_id ${prev.background_id} not in theme catalog`
+        );
+      }
+      if (!prevSub.connects_to.includes(here.background_id)) {
+        throw new Error(
+          `scene[${idx}] (${here.id}) background_id ${here.background_id} is not adjacent to scene[${idx - 1}] (${prev.id}) ${prev.background_id} per the library connects_to graph`
+        );
+      }
+    }
+
+    // Ending scenes (choices: [] && !is_choice_scene) must use a sub-scene
+    // with can_be_ending: true. Applies to all ending scenes regardless of
+    // index.
+    for (const s of scenes) {
+      const isEnding = s.choices.length === 0 && !s.is_choice_scene;
+      if (!isEnding) continue;
+      const sub = themeSubScenesById.get(s.background_id);
+      if (!sub) {
+        throw new Error(
+          `ending scene ${s.id} background_id ${s.background_id} not in theme catalog`
+        );
+      }
+      if (!sub.can_be_ending) {
+        throw new Error(
+          `ending scene ${s.id} uses sub-scene ${s.background_id} which is not flagged can_be_ending`
+        );
+      }
+    }
+  }
+
   const endings = parseEndings(obj.endings, ids, scenes, flagIds);
 
   let secret_ending: StoryScene | undefined;
   if (obj.secret_ending) {
     try {
-      const parsed = parseScene(obj.secret_ending, 99, flagIds);
+      const parsed = parseScene(obj.secret_ending, 99, flagIds, null, themeSubScenesById);
       if (ids.has(parsed.id)) {
         throw new Error("secret_ending id collides with main scene id");
       }
@@ -869,7 +938,8 @@ function parseScene(
   raw: unknown,
   idx: number,
   flagIds?: Set<string>,
-  requiredChoiceCount?: number | null
+  requiredChoiceCount?: number | null,
+  themeSubScenesById?: Map<string, SubScene>
 ): StoryScene {
   if (!raw || typeof raw !== "object") {
     throw new Error(`scene ${idx} not an object`);
@@ -879,17 +949,35 @@ function parseScene(
   const title = requireString(s.title, `scene[${idx}].title`);
   const narration = requireString(s.narration, `scene[${idx}].narration`);
   const background_id_raw = typeof s.background_id === "string" ? s.background_id.trim() : "";
-  // B-010: scenes may either reference a library background_id OR provide a
-  // hand-drawn inline_svg fallback. At least one must be valid.
   const inline_svg_raw = typeof s.inline_svg === "string" ? s.inline_svg.trim() : "";
-  const hasValidBackground = background_id_raw && isValidBackgroundId(background_id_raw);
-  const hasInlineSvg = inline_svg_raw.startsWith("<svg") && inline_svg_raw.length > 40;
-  if (!hasValidBackground && !hasInlineSvg) {
-    throw new Error(
-      `scene[${idx}] needs either a valid background_id (got ${background_id_raw || "missing"}) or a non-empty inline_svg starting with <svg`
-    );
+
+  // B-011: theme-driven worlds validate background_id against the picked
+  // theme's sub-scene catalog and forbid inline_svg. Legacy worlds (no theme
+  // map provided) keep the B-010 path: library id OR inline_svg fallback.
+  const isThemeMode = !!themeSubScenesById && themeSubScenesById.size > 0;
+  let background_id: string;
+  let hasInlineSvg = false;
+  if (isThemeMode) {
+    if (!background_id_raw) {
+      throw new Error(`scene[${idx}] missing background_id (theme-driven worlds require a sub-scene id)`);
+    }
+    if (!themeSubScenesById!.has(background_id_raw)) {
+      throw new Error(
+        `scene[${idx}] background_id ${background_id_raw} is not a sub-scene in the picked theme`
+      );
+    }
+    background_id = background_id_raw;
+    // Theme worlds ignore inline_svg even if Claude returned one.
+  } else {
+    const hasValidBackground = background_id_raw && isValidBackgroundId(background_id_raw);
+    hasInlineSvg = inline_svg_raw.startsWith("<svg") && inline_svg_raw.length > 40;
+    if (!hasValidBackground && !hasInlineSvg) {
+      throw new Error(
+        `scene[${idx}] needs either a valid background_id (got ${background_id_raw || "missing"}) or a non-empty inline_svg starting with <svg`
+      );
+    }
+    background_id = hasValidBackground ? background_id_raw : (BACKGROUND_IDS[0] ?? "forest");
   }
-  const background_id = hasValidBackground ? background_id_raw : (BACKGROUND_IDS[0] ?? "forest");
   const ambient_audio_prompt = requireString(s.ambient_audio_prompt, `scene[${idx}].ambient_audio_prompt`);
 
   const default_props = parsePropList(s.default_props, 3);

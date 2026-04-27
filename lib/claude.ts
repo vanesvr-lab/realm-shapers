@@ -1126,3 +1126,85 @@ function defaultStory(i: WorldIngredients): StoryTree {
 }
 
 export { defaultStory };
+
+// B-010 scope 10: instant phase-1 shell. NO Claude call. Synthesizes a tiny
+// 2-scene "the realm is forming" placeholder using the kid's picker hero +
+// the matched-or-fallback background, so the kid sees the play screen in
+// under a second. /api/finalize regenerates the real tree behind the scenes
+// and swaps it in. Behind feature flag NEXT_PUBLIC_PROGRESSIVE_GEN.
+export function generateWorldShell(
+  ingredients: WorldIngredients,
+  level: number = 1
+): GeneratedWorld {
+  const heroAssetId =
+    ingredients.character_asset_id && isValidCharacterId(ingredients.character_asset_id)
+      ? ingredients.character_asset_id
+      : "hero_girl";
+  const heroName = ingredients.character_name?.trim() || "your hero";
+  const heroVoice: HeroVoiceName =
+    heroAssetId === "hero_girl" || heroAssetId === "fairy" || heroAssetId === "princess" || heroAssetId === "mermaid" || heroAssetId === "witch"
+      ? "Fena"
+      : "Ryan";
+
+  const match = matchSetting(ingredients.setting);
+  const bgId = match.ranked[0]?.id ?? "forest";
+
+  const scene1: StoryScene = {
+    id: "shell_arrive",
+    title: "The Realm is Forming",
+    narration: `You arrive at ${ingredients.setting}. The Oracle is still weaving the rest of this realm. Look around as it shapes itself.`,
+    background_id: bgId,
+    ambient_audio_prompt: "soft chimes, distant wind, anticipation",
+    default_props: ["lantern"],
+    pickups: [],
+    is_side_quest: false,
+    choices: [
+      {
+        id: "shell_step_forward",
+        label: "Step forward",
+        next_scene_id: "shell_pause",
+        interactable_kind: "path",
+        hint: "the path ahead waits while the realm finishes forming",
+      },
+    ],
+  };
+
+  const scene2: StoryScene = {
+    id: "shell_pause",
+    title: "A Moment to Breathe",
+    narration: `${heroName} pauses. The realm is almost ready, ${ingredients.character} feels the story beginning to settle.`,
+    background_id: bgId,
+    ambient_audio_prompt: "soft wind, gentle hum, anticipation",
+    default_props: [],
+    pickups: [],
+    is_side_quest: false,
+    choices: [
+      {
+        id: "shell_wait",
+        label: "Wait for the realm",
+        next_scene_id: "shell_arrive",
+        interactable_kind: "sparkle",
+        hint: "the realm is still forming",
+      },
+    ],
+  };
+
+  const heroLines: HeroLine[] = [
+    { kind: "thought", text: `I cannot wait to see what ${ingredients.setting} becomes.` },
+    { kind: "thought", text: "The Oracle is almost done. I can feel it." },
+  ];
+
+  const story: StoryTree = {
+    title: ingredients.character_name?.trim() || ingredients.character || "A Realm Forming",
+    starting_scene_id: scene1.id,
+    default_character_id: heroAssetId,
+    scenes: [scene1, scene2],
+    flags: undefined,
+    endings: undefined,
+    level,
+    hero_lines: heroLines,
+    hero_voice: heroVoice,
+  };
+
+  return { title: story.title, story };
+}

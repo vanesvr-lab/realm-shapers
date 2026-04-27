@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateWorld, WorldIngredients } from "@/lib/claude";
+import { generateWorld, generateWorldShell, WorldIngredients } from "@/lib/claude";
 import { serverSupabase } from "@/lib/supabase-server";
+
+type GenerateBody = WorldIngredients & { progressive?: boolean };
 
 export async function POST(req: NextRequest) {
   const supabase = serverSupabase();
@@ -12,7 +14,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = (await req.json()) as WorldIngredients;
+    const body = (await req.json()) as GenerateBody;
     if (!body.setting || !body.character || !body.goal || !body.twist) {
       return NextResponse.json(
         { error: "All four ingredients required" },
@@ -27,7 +29,13 @@ export async function POST(req: NextRequest) {
       goal: body.goal,
       twist: body.twist,
     };
-    const world = await generateWorld(ingredients);
+    // B-010 scope 10: progressive returns a placeholder shell instantly so
+    // the kid sees scene 1 in under a second. PlayClient kicks off
+    // /api/finalize to swap the real tree in.
+    const progressive = body.progressive === true;
+    const world = progressive
+      ? generateWorldShell(ingredients)
+      : await generateWorld(ingredients);
     const startingScene = world.story.scenes.find(
       (s) => s.id === world.story.starting_scene_id
     );
@@ -43,6 +51,7 @@ export async function POST(req: NextRequest) {
         ingredients,
         map: world.story,
         audio_prompt: audioPrompt,
+        generation_status: progressive ? "phase_1" : "complete",
       })
       .select("id, share_slug")
       .single();
@@ -60,6 +69,7 @@ export async function POST(req: NextRequest) {
       id: row.id,
       share_slug: row.share_slug,
       unlocked: [],
+      generation_status: progressive ? "phase_1" : "complete",
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

@@ -98,7 +98,7 @@ export function LandingForm() {
     setError(null);
     try {
       const characterText = characterIngredientText(pickedCharacter, heroName);
-      const payload: WorldIngredients = {
+      const payload: WorldIngredients & { progressive?: boolean } = {
         setting: setting.trim(),
         character: characterText,
         character_asset_id: pickedCharacter.asset_id,
@@ -106,6 +106,12 @@ export function LandingForm() {
         goal: goal.trim(),
         twist: twist.trim(),
       };
+      // B-010 scope 10: opt into progressive (instant placeholder, real
+      // tree streams in via /api/finalize) only when the env flag is on.
+      // Defaults off so production behavior is unchanged.
+      if (process.env.NEXT_PUBLIC_PROGRESSIVE_GEN === "true") {
+        payload.progressive = true;
+      }
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

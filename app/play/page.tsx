@@ -11,6 +11,7 @@ type WorldRow = {
   audio_prompt: string | null;
   ingredients: WorldIngredients | null;
   level: number | null;
+  generation_status: string | null;
 };
 
 export default async function PlayPage({
@@ -24,7 +25,7 @@ export default async function PlayPage({
   const supabase = serviceRoleSupabase();
   const { data: world } = await supabase
     .from("worlds")
-    .select("id, title, narration, map, audio_prompt, ingredients, level")
+    .select("id, title, narration, map, audio_prompt, ingredients, level, generation_status")
     .eq("id", worldId)
     .maybeSingle<WorldRow>();
 
@@ -76,6 +77,7 @@ export default async function PlayPage({
       username={username}
       initialUnlocked={[]}
       initialLevel={world.level ?? 1}
+      initialStatus={world.generation_status ?? "complete"}
     />
   );
 }

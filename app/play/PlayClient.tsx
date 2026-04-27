@@ -34,6 +34,7 @@ export function PlayClient({
   username,
   initialUnlocked,
   initialLevel,
+  initialStatus,
 }: {
   worldId: string;
   title: string;
@@ -43,11 +44,13 @@ export function PlayClient({
   username: string | null;
   initialUnlocked: AchievementDef[];
   initialLevel: number;
+  initialStatus: string;
 }) {
   const [story, setStory] = useState<StoryTree>(initialStory);
   const [title, setTitle] = useState<string>(initialTitle);
   const [narration, setNarration] = useState<string>(initialNarration);
   const [level, setLevel] = useState<number>(initialLevel);
+  const [generationStatus, setGenerationStatus] = useState<string>(initialStatus);
   const [goDeeperState, setGoDeeperState] = useState<{ loading: boolean; error: string | null }>(
     { loading: false, error: null }
   );
@@ -250,6 +253,50 @@ export function PlayClient({
     }
   }
 
+  // B-010 scope 10: when the world arrived in 'phase_1' status (instant
+  // shell), kick off /api/finalize once and poll /api/world-status until
+  // the full tree is ready. Then swap the tree in place. Stops polling on
+  // unmount or when status flips to 'complete'.
+  useEffect(() => {
+    if (generationStatus === "complete") return;
+    let cancelled = false;
+    let pollId: ReturnType<typeof setTimeout> | null = null;
+
+    fetch("/api/finalize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ world_id: worldId }),
+    }).catch(() => {
+      // ignore; the poll loop will surface the error if it persists
+    });
+
+    async function poll() {
+      if (cancelled) return;
+      try {
+        const res = await fetch(`/api/world-status?world_id=${encodeURIComponent(worldId)}`);
+        const data = await res.json();
+        if (cancelled) return;
+        if (res.ok && data?.status === "complete" && data?.map) {
+          setStory(data.map as StoryTree);
+          if (typeof data.title === "string") setTitle(data.title);
+          if (typeof data.narration === "string") setNarration(data.narration);
+          if (typeof data.level === "number") setLevel(data.level);
+          setGenerationStatus("complete");
+          return;
+        }
+      } catch {
+        // ignore; retry
+      }
+      pollId = setTimeout(poll, 1500);
+    }
+    poll();
+
+    return () => {
+      cancelled = true;
+      if (pollId) clearTimeout(pollId);
+    };
+  }, [generationStatus, worldId]);
+
   // Fire greeting on first edit-mode mount when not coming straight from ceremony.
   useEffect(() => {
     if (showCeremony) return;
@@ -306,9 +353,18 @@ export function PlayClient({
         </div>
       </header>
 
+      {generationStatus !== "complete" && (
+        <div className="max-w-5xl mx-auto mb-3">
+          <div className="rounded-xl bg-purple-100 border border-purple-200 px-4 py-3 text-sm text-purple-900 shadow-sm">
+            <span className="font-bold">Forming...</span>{" "}
+            The Oracle is still weaving the rest of this realm. The full tree will swap in shortly.
+          </div>
+        </div>
+      )}
+
       <div className="max-w-5xl mx-auto">
         <SceneEditor
-          key={`editor-l${level}`}
+          key={`editor-l${level}-${generationStatus}`}
           worldId={worldId}
           story={story}
           initialNarration={narration || story.scenes[0].narration}
@@ -319,7 +375,7 @@ export function PlayClient({
 
       {mode === "play" && (
         <StoryPlayer
-          key={`player-l${level}`}
+          key={`player-l${level}-${generationStatus}`}
           worldId={worldId}
           story={story}
           flags={flags}

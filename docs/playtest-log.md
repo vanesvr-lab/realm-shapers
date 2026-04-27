@@ -49,6 +49,8 @@ Not asked. Session wrapped before this question because Kellen got stuck and the
 - **Editor placements should carry into play.** What the kid drags into scene 1 in the pre-play SceneEditor doesn't actually show up during gameplay. It should.
 - **Continue / Next Level button on Realm Card.** Same world_id, harder generation, 5 options per scene, must collect 2 of 5 pickups before ending unlocks.
 - **No exit option on Realm Card.** Kid has no way to quit the game from the completion screen. Add one (and probably an in-game exit too — Kellen had no escape hatch when stuck on the brass-key realm).
+- **Player input should drive what gets created.** Right now the connection between what the kid types and what shows up is too loose ("very random not related as much to what they typed or picked"). Two fixes: (1) replace free-text character with a picker grid of 8 options (≥1 girl + ≥1 boy, rest CLI's choice) so kids can only pick characters we have assets for; (2) match free-text setting against a tagged background catalog, expand the catalog with placeholder SVGs for common kid settings (city, school, modern home, sports, lab/hospital), inline-SVG fallback when no library match exists.
+- **Render progressively to cut wait time.** Generate scenes 1-2 fast, return them to the kid, keep generating scenes 3+ in the background while the kid plays. Targets 5-7s to play screen instead of 14-20s. Acceptable to ship behind a feature flag if it's flaky.
 
 ### Decisions made
 All of the above rolled into B-010 brief at `docs/cli-briefs/B-010-playtest-fixes-and-continue-mode.md`.

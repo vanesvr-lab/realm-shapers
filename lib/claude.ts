@@ -26,6 +26,14 @@ export type WorldIngredients = {
   character_name?: string;
   goal: string;
   twist: string;
+  // B-011: theme-driven generation. When theme_id + entry_sub_scene_id are
+  // present (set by /api/generate from the new landing form payload), the
+  // generator routes through the theme catalog (90 sub-scenes across 6
+  // themes) instead of the B-010 matcher. Old worlds (no theme_id) keep
+  // falling through to the matcher silently.
+  theme_id?: string;
+  entry_sub_scene_id?: string;
+  character_id?: string;
 };
 
 export type IngredientSlot = "setting" | "character" | "goal" | "twist";

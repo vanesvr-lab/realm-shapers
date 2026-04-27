@@ -1,0 +1,153 @@
+# B-013: AI-Generated Art Pilot (Drawbridge + Wizard + 6 Pickups)
+
+> Validation pilot. Vanessa's call after the B-012 sourcing discussion: AI image generation almost certainly produces better art than placeholder SVGs at trivial cost. Before committing to ~100 images across all themes, validate on ONE polished example: 1 Drawbridge background, 1 Wizard character, 6 pickup icons. If the quality jump is real, B-014 scales to the full Castle theme. If quality disappoints, fall back to B-012's SVG regen approach.
+
+## Goal
+
+Generate ~8 demo-quality images via Replicate Flux 1.1 Pro, swap them into the existing catalog, and ship. Total cost: under $1. Total CLI time: under an hour. Vanessa reviews the rendered Drawbridge in the browser and makes the go/no-go call on B-014.
+
+## Decisions Locked
+
+- **Provider: Replicate Flux 1.1 Pro.** Best quality-per-dollar (~$0.04/image). MIT-licensed outputs. Simple REST API. Already a familiar pattern from `lib/elevenlabs.ts`.
+- **Pilot scope: exactly 8 images.** 1 Drawbridge background (1792x1024 landscape), 1 Wizard character portrait (1024x1024 square, transparent-ish background), 6 pickup icons (1024x1024 each, simple silhouettes on transparent or light backgrounds). No more — this is validation, not production.
+- **Storage: local files in `public/`.** ~4-6 MB total, fine to commit. Path stays the same as current placeholders so swapping is a straight file replace + catalog update.
+- **Style prompt suffix shared across all 8** for visual consistency: "painterly fantasy storybook art, soft lighting, vibrant kid-friendly colors, no text or watermarks." Same model, same seed family if Replicate exposes one.
+- **No animations on the raster background in pilot.** Skip the SVG-overlay-for-animation complexity for now. Hero bob, pickup glow, scene fade, interactable hover stay (those are React/CSS, layer-independent). Water ripple and banner sway from B-012 scope 4 are DEFERRED — if AI art is gorgeous enough, they may not even be needed. Re-evaluate after Vanessa reviews.
+- **Pickups (6):** rusty_key, torch, climbing_rope, dragons_lullaby, ancient_tome, dragons_egg (the 5 gates from B-012 + a goal item).
+- **No regression on other themes/scenes.** Only Drawbridge swaps to AI-generated raster. Other 14 Castle sub-scenes keep their B-012 SVG regen art (when it ships). Other 5 themes untouched.
+
+## Architectural Decisions
+
+### 1. New env var + provider client
+
+`.env.local`:
+- `REPLICATE_API_TOKEN=<paste from replicate.com/account/api-tokens>`
+
+Vanessa pastes her token directly in VS Code (per memory: don't terminal-heredoc secrets).
+
+`lib/image-gen.ts` (new):
+- Wraps Replicate's REST API for the Flux 1.1 Pro model.
+- Helper: `generateImage({ prompt, aspect_ratio, output_format = "webp" }): Promise<{ url: string; bytes: Buffer }>`.
+- Polls Replicate's prediction endpoint until status === "succeeded" (max ~60s).
+- Returns the image URL + raw bytes for local saving.
+- Errors logged + re-thrown; no silent fallback.
+
+### 2. One-time generation script
+
+`scripts/generate-pilot-art.ts` (new):
+
+Uses `tsx --env-file=.env.local`. Generates the 8 pilot images sequentially:
+
+1. Drawbridge — prompt: *"A medieval castle drawbridge at golden hour, wooden planks crossing a moat, stone archway with iron chains, distant castle wall, soft warm sunlight, painterly fantasy storybook art, soft lighting, vibrant kid-friendly colors, no text or watermarks."* — aspect 16:9, save as `public/backgrounds/castle/drawbridge.webp`.
+
+2. Wizard — prompt: *"A young wizard with a kind face, wearing a blue starry robe and pointed hat, holding a wooden staff, full-body portrait, transparent or pale background, painterly fantasy storybook art, soft lighting, vibrant kid-friendly colors, no text or watermarks."* — aspect 1:1, save as `public/characters/wizard.webp`.
+
+3-8. Pickup icons (1:1 aspect, simple iconic shapes):
+- rusty_key: *"a small ornate rusty iron key with a heart-shaped handle, isolated on a clean pale background, painterly fantasy storybook art, vibrant colors, no text"*
+- torch: *"a wooden torch with bright orange flame, isolated on a clean pale background, painterly fantasy storybook art, no text"*
+- climbing_rope: *"a coiled brown climbing rope with a small grappling hook, isolated on a clean pale background, painterly fantasy storybook art, no text"*
+- dragons_lullaby: *"a glowing musical scroll with golden notes floating around it, isolated on a clean pale background, painterly fantasy storybook art, no text"*
+- ancient_tome: *"a thick leather-bound ancient book with brass clasps, isolated on a clean pale background, painterly fantasy storybook art, no text"*
+- dragons_egg: *"a large speckled iridescent dragon egg in a nest of soft moss, isolated on a clean pale background, painterly fantasy storybook art, no text"*
+
+Save to `public/pickups/{id}.webp`.
+
+Script logs each generation with cost estimate. Total expected: ~$0.32.
+
+### 3. Catalog updates
+
+`lib/themes-catalog.ts`:
+- Castle's `drawbridge` sub-scene: change `file_path` from `/backgrounds/castle/drawbridge.svg` to `/backgrounds/castle/drawbridge.webp`.
+
+`lib/characters-catalog.ts`:
+- Wizard's `thumbnail_path` (and any avatar paths the renderer reads): point to `/characters/wizard.webp`.
+
+`lib/pickups-catalog.ts` (created in B-012 scope 1, or create here if B-012 hasn't shipped yet):
+- Each of the 6 pickups' `icon_path` points at `/pickups/{id}.webp`.
+
+If B-012 hasn't merged yet, this brief creates the pickups catalog. If B-012 already merged, this brief just updates `icon_path` values.
+
+### 4. Renderer compatibility
+
+`components/StoryPlayer.tsx` and any place that resolves `scene.background_id` to a file_path:
+- Today the renderer assumes SVG. With raster (.webp), it should still work via standard `<img>` or background-image — verify whichever pattern is in use handles both extensions.
+- If the existing renderer hardcodes `.svg`, generalize it to use whatever extension the catalog returns.
+
+`components/HeroAvatar.tsx` / character renderer: same — handle webp + svg interchangeably.
+
+`components/InventoryBar.tsx` / pickup icon renderer: same.
+
+### 5. Old placeholders stay in repo
+
+Don't delete the old SVG placeholders. Keep them at:
+- `public/backgrounds/castle/drawbridge.svg.bak` (rename current → .bak before saving the .webp)
+- Same for wizard.svg.bak and any pickup SVGs being replaced.
+
+If pilot is rejected, revert the catalog `file_path` updates and the .bak files come right back. Easy rollback.
+
+### 6. Documentation
+
+Add a short note at the top of `lib/image-gen.ts`:
+
+> "B-013 pilot: AI image generation via Replicate Flux 1.1 Pro. If pilot is approved, scale to B-014 (full Castle theme replacement). See docs/cli-briefs/B-013-ai-art-pilot.md."
+
+## Smoke Tests
+
+After CLI runs the script + commits:
+
+1. **Files exist.** `public/backgrounds/castle/drawbridge.webp`, `public/characters/wizard.webp`, and `public/pickups/{rusty_key, torch, climbing_rope, dragons_lullaby, ancient_tome, dragons_egg}.webp` all present, each under ~1 MB.
+2. **Visual inspection.** Vanessa opens each file directly in the browser. Rates each as "demo-worthy" / "decent" / "reject."
+3. **In-game render.** Generate a Castle realm starting at Drawbridge. The rendered scene shows the new raster background, not an SVG placeholder. Wizard character (if picked) renders with the new portrait. Inventory shows the new pickup icons when collected.
+4. **Mobile.** Resize to 375px wide. Background scales without pixelation. Character + pickup icons stay sharp.
+5. **Network/perf.** First page-load network panel: webp images load fast (<1 sec each). No 404s on missing assets.
+6. **Old worlds.** Open a pre-B-013 world. Confirm it renders fine via the matcher fallback (other backgrounds, not these new ones).
+7. **Animations.** Hero bob still works. Pickup glow still works. Scene fade still works. Banner sway and water ripple are intentionally absent — note in CHANGES.md.
+
+## The decision criterion
+
+**Vanessa's call after viewing the rendered Drawbridge in the browser:**
+
+- **"Yes, ship the rest"** → write B-014 to AI-generate the other 14 Castle sub-scenes + 7 other characters + any remaining pickups. Same approach.
+- **"Quality is meh, fall back"** → revert .webp files to .bak SVGs. Continue with B-012's SVG regen as the baseline approach. Pilot cost: <$1.
+
+## Don't Touch
+
+- Other 14 Castle sub-scenes. They stay on B-012 SVG regen art (or current placeholders if B-012 hasn't shipped yet).
+- Other 5 themes (Forest, Candy Land, City, Space, Underwater). No changes.
+- B-012 scopes 4-8 (Drawbridge polish animations, ambient sound, gates, level 1, tooltips). All compatible with the new raster background.
+- Generation latency. The catalog file_path swap doesn't affect Claude generation time.
+
+## Decisions Open
+
+None at brief-write time. Pilot scope is intentionally narrow.
+
+---
+
+## CLI kickoff prompt
+
+(Paste this into a fresh CLI session in the realm-shapers project. Run AFTER B-012 finishes — don't interrupt B-012 mid-flight.)
+
+```
+Read CLAUDE.md and the last 3 CHANGES.md entries.
+
+Then read docs/cli-briefs/B-013-ai-art-pilot.md fully.
+
+This is a NARROW pilot. Total scope: ~8 image generations + catalog file_path swaps + a one-time generation script. Aim for under an hour.
+
+Decisions are locked. Don't expand scope. Don't touch other themes or scenes.
+
+Execute in this order. Each numbered step ends in a commit.
+
+1. Add lib/image-gen.ts (Replicate Flux 1.1 Pro client). Add REPLICATE_API_TOKEN to .env.local — STOP and ask Vanessa to paste her token via VS Code (per project memory feedback_secrets_in_vscode.md). Don't proceed until the token is in place.
+2. Add scripts/generate-pilot-art.ts. Run it once via `npx tsx --env-file=.env.local scripts/generate-pilot-art.ts`. Commit the 8 generated .webp files to public/.
+3. Rename current Drawbridge SVG and Wizard SVG to .bak (preserves rollback path). Update catalog file_paths to point at the new .webp files. Update pickup catalog icon_paths.
+4. Verify renderer handles webp (check StoryPlayer, HeroAvatar, InventoryBar). If any place hardcodes .svg, generalize.
+5. Run npx tsc --noEmit and npm run build clean. Push.
+6. Append a B-013 entry to CHANGES.md noting the pilot is awaiting Vanessa's go/no-go after browser inspection.
+
+Do NOT delete the old SVG placeholders (.bak files stay until Vanessa says ship). Do NOT generate any other images. Do NOT generate animations or ambient sound (those are B-012 scope 4-5).
+
+When done, write a one-line note for Vanessa: "Pilot art pushed, deployed at https://realm-shapers.vercel.app. Pick a Castle realm starting at Drawbridge with a Wizard character to see all 8 images in context. Approve or reject."
+
+Do not autoplay any audio. Do not use em dashes in user-facing copy. Follow CLAUDE.md.
+```

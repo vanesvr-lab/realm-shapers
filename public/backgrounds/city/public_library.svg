@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <rect width="1600" height="900" fill="#6b7c93"/>
+  <rect width="1600" height="640" fill="#a3b1c2" opacity="0.55"/>
+  <circle cx="800" cy="500" r="220" fill="#3f4a5b" opacity="0.7"/>
+  <ellipse cx="800" cy="780" rx="900" ry="100" fill="#22293a" opacity="0.6"/>
+  <circle cx="1200" cy="240" r="80" fill="#a3b1c2" opacity="0.7"/>
+  <text x="1580" y="880" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="22" fill="rgba(0,0,0,0.55)">placeholder: city_public_library</text>
+</svg>

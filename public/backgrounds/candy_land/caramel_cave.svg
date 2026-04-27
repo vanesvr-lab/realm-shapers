@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <rect width="1600" height="900" fill="#f7b6c4"/>
+  <rect width="1600" height="640" fill="#ffd6e0" opacity="0.55"/>
+  <path d="M0,720 Q400,500 800,680 T1600,640 L1600,900 L0,900 Z" fill="#7b4a64" opacity="0.8"/>
+  <path d="M0,800 Q400,720 800,820 T1600,760 L1600,900 L0,900 Z" fill="#c97aa1" opacity="0.6"/>
+  <text x="1580" y="880" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="22" fill="rgba(0,0,0,0.55)">placeholder: candy_caramel_cave</text>
+</svg>

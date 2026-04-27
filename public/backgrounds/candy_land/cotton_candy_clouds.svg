@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <rect width="1600" height="900" fill="#f7b6c4"/>
+  <rect width="1600" height="640" fill="#ffd6e0" opacity="0.55"/>
+  <circle cx="800" cy="500" r="220" fill="#c97aa1" opacity="0.7"/>
+  <ellipse cx="800" cy="780" rx="900" ry="100" fill="#7b4a64" opacity="0.6"/>
+  <circle cx="1200" cy="240" r="80" fill="#ffd6e0" opacity="0.7"/>
+  <text x="1580" y="880" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="22" fill="rgba(0,0,0,0.55)">placeholder: candy_cotton_candy_clouds</text>
+</svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" preserveAspectRatio="xMidYMid slice">
+  <rect width="400" height="240" fill="#1b1d3a"/>
+  <rect width="400" height="180" fill="#3a3f6b" opacity="0.6"/>
+  <polygon points="0,180 80,140 160,170 240,120 320,160 400,140 400,240 0,240" fill="#7a82c4" opacity="0.8"/>
+  <text x="20" y="40" font-family="ui-sans-serif, system-ui" font-size="24" font-weight="700" fill="rgba(255,255,255,0.92)">Space</text>
+  <text x="20" y="62" font-family="ui-sans-serif, system-ui" font-size="12" fill="rgba(255,255,255,0.78)">placeholder</text>
+</svg>

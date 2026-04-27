@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <rect width="1600" height="900" fill="#6b7c93"/>
+  <rect width="1600" height="640" fill="#a3b1c2" opacity="0.55"/>
+  <polygon points="0,720 240,520 480,640 760,440 1040,580 1320,420 1600,560 1600,900 0,900" fill="#22293a" opacity="0.85"/>
+  <polygon points="0,800 320,700 640,760 960,680 1280,740 1600,700 1600,900 0,900" fill="#3f4a5b" opacity="0.6"/>
+  <text x="1580" y="880" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="22" fill="rgba(0,0,0,0.55)">placeholder: city_school</text>
+</svg>

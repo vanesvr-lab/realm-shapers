@@ -2,6 +2,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ASSETS_BY_ID, assetUrlById } from "@/lib/asset-library";
+import { resolveBackgroundUrl } from "@/lib/background-resolver";
 import type { StoryTree, WorldIngredients } from "@/lib/claude";
 
 export function RealmCardThumb({
@@ -20,7 +21,7 @@ export function RealmCardThumb({
   const startingScene = story.scenes.find((s) => s.id === story.starting_scene_id) ?? story.scenes[0];
   const charUrl = assetUrlById(story.default_character_id);
   const charMeta = ASSETS_BY_ID[story.default_character_id];
-  const bgUrl = startingScene ? assetUrlById(startingScene.background_id) : null;
+  const bgUrl = startingScene ? resolveBackgroundUrl(startingScene.background_id) : null;
   return (
     <div
       className="relative rounded-2xl overflow-hidden shadow-lg ring-1 ring-amber-300 bg-gradient-to-b from-amber-50 to-amber-100 flex flex-col"

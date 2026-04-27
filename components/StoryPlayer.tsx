@@ -6,6 +6,7 @@ import {
   ASSETS_BY_ID,
   assetUrlById,
 } from "@/lib/asset-library";
+import { resolveBackgroundUrl } from "@/lib/background-resolver";
 import type { ChoiceOption, StoryScene, StoryTree } from "@/lib/claude";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { Interactable } from "@/components/Interactable";
@@ -131,7 +132,7 @@ export function StoryPlayer({
       `StoryPlayer: hero asset id "${renderedHeroId}" not found in library; nothing will render`
     );
   }
-  const bgUrl = assetUrlById(scene.background_id);
+  const bgUrl = resolveBackgroundUrl(scene.background_id);
   const resolved = useMemo(() => resolveScene(scene, flags), [scene, flags]);
   // B-010 scope 6: editor placements only affect the starting scene. Editor
   // adds win because the kid placed them deliberately. Cap to the same 3-prop

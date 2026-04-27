@@ -3,6 +3,7 @@ import Image from "next/image";
 import { useRef } from "react";
 import { Rnd } from "react-rnd";
 import { assetUrlById, ASSETS_BY_ID } from "@/lib/asset-library";
+import { resolveBackgroundUrl } from "@/lib/background-resolver";
 import { PropOverlay, type PlacedProp } from "@/components/PropOverlay";
 import { TextBubble, type PlacedBubble } from "@/components/TextBubble";
 
@@ -36,7 +37,7 @@ export function SceneCanvas({
   readOnly?: boolean;
 }) {
   const canvasRef = useRef<HTMLDivElement>(null);
-  const bgUrl = assetUrlById(backgroundId);
+  const bgUrl = resolveBackgroundUrl(backgroundId);
   const charUrl = assetUrlById(characterId);
   const charMeta = ASSETS_BY_ID[characterId];
 

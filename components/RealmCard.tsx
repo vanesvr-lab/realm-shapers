@@ -2,6 +2,7 @@
 import Image from "next/image";
 import { useRef, useState } from "react";
 import { ASSETS_BY_ID, assetUrlById } from "@/lib/asset-library";
+import { resolveBackgroundUrl } from "@/lib/background-resolver";
 import type { StoryScene, StoryTree, WorldIngredients } from "@/lib/claude";
 import {
   calculateRarity,
@@ -39,7 +40,7 @@ export function RealmCard({
   const reason = rarityReason(rarity, rarityInputs);
   const charUrl = assetUrlById(story.default_character_id);
   const charMeta = ASSETS_BY_ID[story.default_character_id];
-  const bgUrl = assetUrlById(endingScene.background_id);
+  const bgUrl = resolveBackgroundUrl(endingScene.background_id);
 
   async function downloadPng() {
     if (!cardRef.current || downloading) return;

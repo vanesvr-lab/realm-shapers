@@ -5,6 +5,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { StoryTree } from "@/lib/claude";
 import { ASSETS_BY_ID, assetUrlById } from "@/lib/asset-library";
+import { resolveBackgroundUrl } from "@/lib/background-resolver";
 
 export function SharedStoryClient({
   worldId,
@@ -22,7 +23,7 @@ export function SharedStoryClient({
   const scene = story.scenes.find((s) => s.id === sceneId) ?? story.scenes[0];
   const charUrl = assetUrlById(story.default_character_id);
   const charMeta = ASSETS_BY_ID[story.default_character_id];
-  const bgUrl = assetUrlById(scene.background_id);
+  const bgUrl = resolveBackgroundUrl(scene.background_id);
   const isEnding = scene.choices.length === 0;
 
   return (

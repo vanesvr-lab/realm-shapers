@@ -4,6 +4,19 @@ const TTS_BASE_URL = "https://api.elevenlabs.io/v1/text-to-speech";
 // "Rachel" — warm female narrator, kid-friendly default.
 export const DEFAULT_ORACLE_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
 
+// B-010 scope 9: per-realm hero voices. Claude picks one based on the
+// kid's chosen character (girl-coded → Fena, boy-coded → Ryan, neutral →
+// whichever fits, defaulting to Ryan if truly ambiguous).
+export const HERO_VOICE_FENA = "BlgEcC0TfWpBak7FmvHW";
+export const HERO_VOICE_RYAN = "8Nfp0JhQpkjJB35HObeq";
+
+export type HeroVoiceName = "Fena" | "Ryan";
+
+export function heroVoiceIdFor(name: HeroVoiceName | null | undefined): string {
+  if (name === "Fena") return HERO_VOICE_FENA;
+  return HERO_VOICE_RYAN;
+}
+
 export async function generateSoundEffect(prompt: string): Promise<Buffer> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {

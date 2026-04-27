@@ -12,6 +12,7 @@ import { Interactable } from "@/components/Interactable";
 import { InventoryBar } from "@/components/InventoryBar";
 import { OracleSpeaks } from "@/components/OracleSpeaks";
 import { ChoiceMoment } from "@/components/ChoiceMoment";
+import { HeroAvatar } from "@/components/HeroAvatar";
 import { speakOracle } from "@/lib/oracle-bus";
 import type { FlagState } from "@/lib/flags";
 import { resolveScene, selectEnding } from "@/lib/scene-resolver";
@@ -124,7 +125,6 @@ export function StoryPlayer({
   const renderedHeroId = heroCharacterId && ASSETS_BY_ID[heroCharacterId]
     ? heroCharacterId
     : story.default_character_id;
-  const charUrl = assetUrlById(renderedHeroId);
   const charMeta = ASSETS_BY_ID[renderedHeroId];
   if (typeof window !== "undefined" && !charMeta) {
     console.warn(
@@ -532,30 +532,20 @@ export function StoryPlayer({
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
 
-            {charUrl && charMeta && (
-              <motion.div
-                key={`${scene.id}-char`}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.2, duration: 0.4 }}
-                className="absolute"
-                style={{
+            {charMeta && (
+              <HeroAvatar
+                characterId={renderedHeroId}
+                heroVoice={story.hero_voice}
+                heroLines={story.hero_lines}
+                sceneKey={scene.id}
+                positionStyle={{
                   left: "50%",
                   bottom: "32%",
                   transform: "translateX(-50%)",
                   width: "min(22vw, 180px)",
                   height: "min(22vw, 180px)",
                 }}
-              >
-                <Image
-                  src={charUrl}
-                  alt={charMeta.alt}
-                  fill
-                  unoptimized
-                  sizes="200px"
-                  className="object-contain drop-shadow-2xl"
-                />
-              </motion.div>
+              />
             )}
 
             {renderedProps.map((propId, i) => {

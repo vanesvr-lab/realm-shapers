@@ -100,6 +100,13 @@ export type StoryScene = {
   inline_svg?: string;
 };
 
+export type HeroLine = {
+  kind: "thought" | "joke";
+  text: string;
+};
+
+export type HeroVoiceName = "Fena" | "Ryan";
+
 export type StoryTree = {
   title: string;
   starting_scene_id: string;
@@ -114,6 +121,11 @@ export type StoryTree = {
   // B-010 scope 7: difficulty level. 1 by default; 2+ for "Go Deeper"
   // regenerations. Drives the runtime 2-of-5 pickup completion gate.
   level?: number;
+  // B-010 scope 9: clickable-hero lines (3-5 per realm) and the per-realm
+  // hero voice (Fena for girl-coded, Ryan for boy-coded, Claude's pick
+  // for neutrals). Optional for backwards compat with pre-B-010 worlds.
+  hero_lines?: HeroLine[];
+  hero_voice?: HeroVoiceName;
 };
 
 export type GeneratedWorld = {
@@ -312,6 +324,10 @@ ALLOWED default_character_id values: ${CHARACTER_IDS.join(", ")}
 
 ALLOWED prop ids (for default_props, pickups, prop_overrides arrays): ${PROP_IDS.join(", ")}
 
+CLICKABLE HERO. Provide a top-level "hero_lines" array of 3 to 5 entries. Each entry is { "kind": "thought" | "joke", "text": "..." }. The kid taps their hero in any scene to hear one. Mix tones: some "thought" (in-character musing tied to the realm) and some "joke" (kid-friendly, age 11). Make at least one line reference the kid's setting or character specifically ("I never thought I would meet a real ${i.character}").
+
+Provide a top-level "hero_voice" string, either "Fena" or "Ryan". Pick "Fena" for girl-coded characters (hero girl, princess, fairy, mermaid, witch). Pick "Ryan" for boy-coded characters (hero boy, knight, wizard, pirate, ninja). For animals, robots, aliens, dragons, and any neutral character, pick whichever fits the character's vibe; default to "Ryan" if truly ambiguous.
+
 You must also write a "secret_ending" scene that is hidden from the normal choices. This becomes the player's true ending if they explore everything (visit all scenes or collect all pickups). Same shape as a normal ending scene (no choices). The secret ending is independent of the "endings" list above (which controls regular ending divergence by flag state).
 
 Respond with ONLY JSON in EXACTLY this shape, no preamble, no markdown, no code fences:
@@ -319,6 +335,11 @@ Respond with ONLY JSON in EXACTLY this shape, no preamble, no markdown, no code 
   "title": "string, 2 to 6 words, evocative",
   "starting_scene_id": "snake_case_id_matching_one_scene",
   "default_character_id": "must be one of the allowed character ids",
+  "hero_voice": "Fena | Ryan",
+  "hero_lines": [
+    { "kind": "thought", "text": "an in-character musing about this realm" },
+    { "kind": "joke", "text": "a kid-friendly joke around age 11" }
+  ],
   "flags": [
     { "id": "snake_case_flag_id", "description": "one short sentence about what setting this flag means" }
   ],
@@ -614,6 +635,9 @@ function parseStoryResponse(
     );
   }
 
+  const hero_lines = parseHeroLines(obj.hero_lines);
+  const hero_voice = parseHeroVoice(obj.hero_voice);
+
   return {
     title,
     starting_scene_id,
@@ -623,7 +647,28 @@ function parseStoryResponse(
     flags,
     endings,
     level,
+    hero_lines,
+    hero_voice,
   };
+}
+
+function parseHeroLines(raw: unknown): HeroLine[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: HeroLine[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const e = entry as Record<string, unknown>;
+    const kind = e.kind === "thought" || e.kind === "joke" ? e.kind : null;
+    const text = typeof e.text === "string" ? e.text.trim() : "";
+    if (!kind || !text) continue;
+    out.push({ kind, text });
+  }
+  return out.length > 0 ? out.slice(0, 8) : undefined;
+}
+
+function parseHeroVoice(raw: unknown): HeroVoiceName | undefined {
+  if (raw === "Fena" || raw === "Ryan") return raw;
+  return undefined;
 }
 
 function parseFlags(raw: unknown): StoryFlag[] {

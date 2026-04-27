@@ -46,6 +46,11 @@ export type StoryChoice = {
   next_scene_id: string;
   interactable_kind: InteractableKind;
   requires?: string[];
+  // B-010 scope 8: one-sentence flavor hint shown when the kid first taps
+  // this choice. Tone, not spoiler ("this path looks calm and quiet" not
+  // "this path leads to the secret ending"). Optional for back-compat with
+  // pre-B-010 worlds.
+  hint?: string;
 };
 
 export type StoryFlag = {
@@ -350,6 +355,7 @@ Respond with ONLY JSON in EXACTLY this shape, no preamble, no markdown, no code 
           "label": "2 to 6 word kid-friendly button text",
           "next_scene_id": "id of another scene in this tree",
           "interactable_kind": "door | chest | path | sparkle | creature",
+          "hint": "one short sentence describing the TONE of this path (NOT the consequence). Examples: 'this path looks calm and quiet' or 'something here hums with mischief'. Avoid spoilers like 'leads to the secret ending'.",
           "requires": ["optional, prop ids that must be collected first"]
         }
       ]
@@ -882,8 +888,13 @@ function parseChoice(raw: unknown, sceneIdx: number, choiceIdx: number): StoryCh
     const filtered = c.requires.filter((r): r is string => typeof r === "string" && isValidPropId(r));
     if (filtered.length > 0) requires = Array.from(new Set(filtered));
   }
+  let hint: string | undefined;
+  if (typeof c.hint === "string" && c.hint.trim()) {
+    hint = c.hint.trim();
+  }
   const choice: StoryChoice = { id, label, next_scene_id, interactable_kind };
   if (requires) choice.requires = requires;
+  if (hint) choice.hint = hint;
   return choice;
 }
 

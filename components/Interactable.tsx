@@ -1,5 +1,4 @@
 "use client";
-import { useState } from "react";
 import { motion } from "framer-motion";
 import type { InteractableKind } from "@/lib/claude";
 
@@ -19,33 +18,49 @@ const KIND_COLORS: Record<InteractableKind, string> = {
   creature: "rgba(255, 195, 180, 0.95)",
 };
 
+// B-010 scope 8: tap-to-show / tap-again-to-commit. The first tap on an
+// interactable sets it as "previewing" (parent owns the previewedId state)
+// and surfaces a tooltip card with Claude's flavor hint or a generic
+// fallback. The second tap on the SAME interactable commits the navigation.
+// Tapping a different interactable swaps the preview to it. Locked-state
+// hint (missing items) takes over the tooltip when present.
 export function Interactable({
+  interactableId,
   kind,
   label,
   locked,
   hint,
+  lockedHint,
   sideQuest,
+  isPreviewing,
+  onPreview,
   onActivate,
   positionStyle,
 }: {
+  interactableId: string;
   kind: InteractableKind;
   label: string;
   locked: boolean;
   hint?: string;
+  lockedHint?: string;
   sideQuest?: boolean;
+  isPreviewing: boolean;
+  onPreview: (id: string) => void;
   onActivate: () => void;
   positionStyle: React.CSSProperties;
 }) {
-  const [showHint, setShowHint] = useState(false);
-
-  function handleClick() {
-    if (locked) {
-      setShowHint(true);
-      setTimeout(() => setShowHint(false), 2200);
+  function handleClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!isPreviewing) {
+      onPreview(interactableId);
       return;
     }
     onActivate();
   }
+
+  const tooltipText = locked
+    ? (lockedHint ?? hint ?? "Need something first")
+    : (hint ?? "Tap again to go here");
 
   return (
     <motion.div
@@ -59,18 +74,20 @@ export function Interactable({
         type="button"
         onClick={handleClick}
         aria-label={label}
+        aria-pressed={isPreviewing}
         className="group relative flex flex-col items-center gap-1 outline-none"
       >
         <motion.span
           className="relative flex items-center justify-center w-20 h-20 sm:w-24 sm:h-24 rounded-full"
           style={{
             background: `radial-gradient(circle, ${KIND_COLORS[kind]} 0%, rgba(255,200,90,0.25) 60%, rgba(255,200,90,0) 100%)`,
+            boxShadow: isPreviewing ? "0 0 0 4px rgba(255, 235, 150, 0.85)" : undefined,
           }}
           animate={{
-            scale: [1, 1.08, 1],
+            scale: isPreviewing ? [1, 1.14, 1] : [1, 1.08, 1],
             opacity: [0.85, 1, 0.85],
           }}
-          transition={{ repeat: Infinity, duration: 2.2, ease: "easeInOut" }}
+          transition={{ repeat: Infinity, duration: isPreviewing ? 1.4 : 2.2, ease: "easeInOut" }}
         >
           <span
             className="relative z-10 text-3xl sm:text-4xl drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)]"
@@ -98,15 +115,21 @@ export function Interactable({
         <span className="px-2 py-0.5 rounded-full bg-black/60 text-amber-50 text-xs sm:text-sm font-semibold whitespace-nowrap shadow opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition">
           {label}
         </span>
-        {showHint && hint && (
-          <motion.span
+        {isPreviewing && (
+          <motion.div
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="absolute -top-9 px-3 py-1 rounded-full bg-white/95 text-amber-900 text-xs font-semibold shadow border border-amber-200 whitespace-nowrap"
+            className="absolute -top-24 left-1/2 -translate-x-1/2 z-30 pointer-events-none w-44 sm:w-52"
           >
-            {hint}
-          </motion.span>
+            <div className="bg-white/95 text-amber-950 rounded-xl shadow-xl border border-amber-200 px-3 py-2 text-xs sm:text-sm leading-snug text-center">
+              <p className="font-semibold mb-0.5">{label}</p>
+              <p className="italic text-amber-800">{tooltipText}</p>
+              {!locked && (
+                <p className="text-[10px] uppercase tracking-widest text-amber-600 mt-1">tap again to go</p>
+              )}
+            </div>
+          </motion.div>
         )}
       </button>
     </motion.div>

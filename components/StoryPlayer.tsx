@@ -102,6 +102,10 @@ export function StoryPlayer({
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
+  // B-010 scope 8: id of the interactable currently in "previewing" state.
+  // First tap sets it, second tap on the same id commits, taps elsewhere or
+  // outside dismiss it.
+  const [previewedInteractableId, setPreviewedInteractableId] = useState<string | null>(null);
   const audioCache = useRef<Record<string, string>>({});
   const completedRef = useRef(false);
   const endingRedirectedRef = useRef(false);
@@ -222,6 +226,11 @@ export function StoryPlayer({
       cancelled = true;
     };
   }, [scene.id, scene.ambient_audio_prompt, worldId]);
+
+  // Reset choice preview state whenever the active scene changes.
+  useEffect(() => {
+    setPreviewedInteractableId(null);
+  }, [scene.id]);
 
   // Fire scene_visited (and side_quest_completed for side quest scenes) on
   // every scene change, including the initial mount.
@@ -487,7 +496,10 @@ export function StoryPlayer({
   );
 
   return (
-    <div className="fixed inset-0 z-40 bg-black flex flex-col">
+    <div
+      className="fixed inset-0 z-40 bg-black flex flex-col"
+      onClick={() => setPreviewedInteractableId(null)}
+    >
       <div className="absolute inset-0">
         <AnimatePresence mode="wait">
           <motion.div
@@ -630,7 +642,7 @@ export function StoryPlayer({
                 const required = choice.requires ?? [];
                 const missing = required.filter((r) => !inventory.includes(r));
                 const locked = missing.length > 0;
-                const hint = locked
+                const lockedHint = locked
                   ? `Find ${missing
                       .map((id) => ASSETS_BY_ID[id]?.alt ?? id)
                       .join(" + ")} first`
@@ -641,12 +653,19 @@ export function StoryPlayer({
                 return (
                   <Interactable
                     key={`${scene.id}-choice-${choice.id}`}
+                    interactableId={choice.id}
                     kind={choice.interactable_kind ?? "path"}
                     label={choice.label}
                     locked={locked}
-                    hint={hint}
+                    hint={choice.hint}
+                    lockedHint={lockedHint}
                     sideQuest={leadsToSideQuest}
-                    onActivate={() => tryActivate(choice.id)}
+                    isPreviewing={previewedInteractableId === choice.id}
+                    onPreview={(id) => setPreviewedInteractableId(id)}
+                    onActivate={() => {
+                      setPreviewedInteractableId(null);
+                      tryActivate(choice.id);
+                    }}
                     positionStyle={pos}
                   />
                 );

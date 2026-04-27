@@ -55,6 +55,7 @@ export function StoryPlayer({
   heroCharacterId,
   onSetFlag,
   onExit,
+  onQuitRealm,
   onComplete,
   onEvent,
 }: {
@@ -68,6 +69,10 @@ export function StoryPlayer({
   heroCharacterId?: string;
   onSetFlag: (id: string, value: boolean) => void;
   onExit: () => void;
+  // B-010 scope 4: when present, the in-game corner button surfaces a
+  // confirm dialog and calls this on confirm. Prevents kids from getting
+  // stranded mid-realm on bugs like Kellen's phantom brass key.
+  onQuitRealm?: () => void;
   onComplete?: (payload: CompletionPayload) => void;
   onEvent?: (event: GameplayEvent) => void;
 }) {
@@ -84,6 +89,7 @@ export function StoryPlayer({
 
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
+  const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const audioCache = useRef<Record<string, string>>({});
   const completedRef = useRef(false);
   const endingRedirectedRef = useRef(false);
@@ -569,13 +575,63 @@ export function StoryPlayer({
         </AnimatePresence>
       </div>
 
-      <button
-        type="button"
-        onClick={onExit}
-        className="absolute top-4 right-4 z-10 px-3 py-2 rounded-lg bg-white/90 text-amber-900 font-semibold text-sm shadow"
-      >
-        ✕ Exit
-      </button>
+      <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 items-end">
+        <button
+          type="button"
+          onClick={onExit}
+          className="px-3 py-2 rounded-lg bg-white/90 text-amber-900 font-semibold text-sm shadow"
+        >
+          ↩ Editor
+        </button>
+        {onQuitRealm && (
+          <button
+            type="button"
+            onClick={() => setShowQuitConfirm(true)}
+            className="px-3 py-2 rounded-lg bg-rose-100/95 text-rose-900 font-semibold text-sm shadow border border-rose-200"
+          >
+            🚪 Leave realm
+          </button>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {showQuitConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl">
+              <h3 className="text-lg font-bold text-amber-900 mb-2">Leave this realm?</h3>
+              <p className="text-sm text-slate-700 mb-4">
+                Your progress here will not save. You can always come back and start fresh.
+              </p>
+              <div className="flex flex-wrap gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowQuitConfirm(false)}
+                  className="px-4 py-2 rounded-lg bg-slate-100 text-slate-800 text-sm font-semibold hover:bg-slate-200"
+                >
+                  Stay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuitConfirm(false);
+                    onQuitRealm?.();
+                  }}
+                  className="px-4 py-2 rounded-lg bg-rose-700 text-white text-sm font-bold hover:bg-rose-800"
+                >
+                  Leave realm
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 items-start">
         {audioUrl && (

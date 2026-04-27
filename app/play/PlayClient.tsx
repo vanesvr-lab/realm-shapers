@@ -269,6 +269,7 @@ export function PlayClient({
           heroCharacterId={editorSnapshot.characterId}
           onSetFlag={handleSetFlag}
           onExit={handleExitPlay}
+          onQuitRealm={() => router.push("/")}
           onComplete={handlePlayerComplete}
           onEvent={checkAchievements}
         />
@@ -326,6 +327,12 @@ export function PlayClient({
                   className="px-4 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700"
                 >
                   Make another
+                </Link>
+                <Link
+                  href="/"
+                  className="px-4 py-3 rounded-xl bg-slate-200 text-slate-800 font-semibold hover:bg-slate-300"
+                >
+                  🚪 Exit
                 </Link>
               </div>
             </div>

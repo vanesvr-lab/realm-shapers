@@ -4,22 +4,23 @@ import { useRouter } from "next/navigation";
 import { browserSupabase } from "@/lib/supabase";
 import { IdeaButton } from "@/components/IdeaButton";
 import { StarTapGame } from "@/components/StarTapGame";
+import {
+  CharacterPicker,
+  characterIngredientText,
+  type PickerOption,
+} from "@/components/CharacterPicker";
 import type { IngredientSlot, WorldIngredients } from "@/lib/claude";
 
 const supabase = browserSupabase();
 
-const SLOTS: { key: IngredientSlot; label: string; placeholder: string; helper: string }[] = [
+type TextSlot = Exclude<IngredientSlot, "character">;
+
+const TEXT_SLOTS: { key: TextSlot; label: string; placeholder: string; helper: string }[] = [
   {
     key: "setting",
     label: "Setting",
     placeholder: "e.g. an underwater library carved from coral",
     helper: "Where does your story happen?",
-  },
-  {
-    key: "character",
-    label: "Character",
-    placeholder: "e.g. a forgetful octopus librarian",
-    helper: "Who is the hero of this world?",
   },
   {
     key: "goal",
@@ -35,13 +36,15 @@ const SLOTS: { key: IngredientSlot; label: string; placeholder: string; helper: 
   },
 ];
 
-const EMPTY: WorldIngredients = { setting: "", character: "", goal: "", twist: "" };
-
 export function LandingForm() {
   const router = useRouter();
   const [authReady, setAuthReady] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [values, setValues] = useState<WorldIngredients>(EMPTY);
+  const [setting, setSetting] = useState("");
+  const [goal, setGoal] = useState("");
+  const [twist, setTwist] = useState("");
+  const [pickedCharacter, setPickedCharacter] = useState<PickerOption | null>(null);
+  const [heroName, setHeroName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,23 +71,45 @@ export function LandingForm() {
     };
   }, []);
 
-  function update(key: IngredientSlot, value: string) {
-    setValues((v) => ({ ...v, [key]: value }));
+  // Build the WorldIngredients-shaped payload used by IdeaButton (so its
+  // suggestions can read sibling slot values for context).
+  const currentForIdeas: WorldIngredients = {
+    setting,
+    character: pickedCharacter
+      ? characterIngredientText(pickedCharacter, heroName)
+      : "",
+    goal,
+    twist,
+  };
+
+  function updateText(key: TextSlot, value: string) {
+    if (key === "setting") setSetting(value);
+    else if (key === "goal") setGoal(value);
+    else setTwist(value);
   }
 
   const allFilled =
-    values.setting.trim() && values.character.trim() && values.goal.trim() && values.twist.trim();
+    setting.trim() && pickedCharacter && goal.trim() && twist.trim();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!allFilled || loading) return;
+    if (!allFilled || loading || !pickedCharacter) return;
     setLoading(true);
     setError(null);
     try {
+      const characterText = characterIngredientText(pickedCharacter, heroName);
+      const payload: WorldIngredients = {
+        setting: setting.trim(),
+        character: characterText,
+        character_asset_id: pickedCharacter.asset_id,
+        character_name: heroName.trim() || undefined,
+        goal: goal.trim(),
+        twist: twist.trim(),
+      };
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -92,7 +117,6 @@ export function LandingForm() {
         setLoading(false);
         return;
       }
-      // Stash any unlocked achievements so PlayClient can show them once it mounts.
       try {
         if (Array.isArray(data.unlocked) && data.unlocked.length > 0) {
           sessionStorage.setItem(
@@ -116,26 +140,57 @@ export function LandingForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {SLOTS.map((slot) => (
-        <div key={slot.key}>
-          <div className="flex items-center justify-between mb-1">
-            <label htmlFor={slot.key} className="block font-semibold text-amber-900">
-              {slot.label}
-            </label>
-            <IdeaButton slot={slot.key} current={values} onPick={(s) => update(slot.key, s)} />
-          </div>
-          <p className="text-xs text-slate-500 mb-2">{slot.helper}</p>
-          <input
-            id={slot.key}
-            type="text"
-            value={values[slot.key]}
-            onChange={(e) => update(slot.key, e.target.value)}
-            placeholder={slot.placeholder}
-            disabled={loading}
-            className="w-full px-4 py-3 rounded-lg border border-amber-200 bg-amber-50/40 focus:outline-none focus:ring-2 focus:ring-amber-400"
-          />
+      {/* Setting (free text + ideas) */}
+      <TextField
+        slot="setting"
+        label={TEXT_SLOTS[0].label}
+        placeholder={TEXT_SLOTS[0].placeholder}
+        helper={TEXT_SLOTS[0].helper}
+        value={setting}
+        onChange={(v) => updateText("setting", v)}
+        disabled={loading}
+        ideaContext={currentForIdeas}
+      />
+
+      {/* Character picker (replaces free-text per B-010) */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block font-semibold text-amber-900">Character</label>
+          <span className="text-xs text-amber-700/80 italic">Pick a hero, name them if you like</span>
         </div>
-      ))}
+        <p className="text-xs text-slate-500 mb-2">Who is the hero of this world?</p>
+        <CharacterPicker
+          selectedAssetId={pickedCharacter?.asset_id ?? null}
+          heroName={heroName}
+          onPick={setPickedCharacter}
+          onNameChange={setHeroName}
+          disabled={loading}
+        />
+      </div>
+
+      {/* Goal */}
+      <TextField
+        slot="goal"
+        label={TEXT_SLOTS[1].label}
+        placeholder={TEXT_SLOTS[1].placeholder}
+        helper={TEXT_SLOTS[1].helper}
+        value={goal}
+        onChange={(v) => updateText("goal", v)}
+        disabled={loading}
+        ideaContext={currentForIdeas}
+      />
+
+      {/* Twist */}
+      <TextField
+        slot="twist"
+        label={TEXT_SLOTS[2].label}
+        placeholder={TEXT_SLOTS[2].placeholder}
+        helper={TEXT_SLOTS[2].helper}
+        value={twist}
+        onChange={(v) => updateText("twist", v)}
+        disabled={loading}
+        ideaContext={currentForIdeas}
+      />
 
       {error && (
         <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">{error}</p>
@@ -157,5 +212,46 @@ export function LandingForm() {
         </div>
       )}
     </form>
+  );
+}
+
+function TextField({
+  slot,
+  label,
+  placeholder,
+  helper,
+  value,
+  onChange,
+  disabled,
+  ideaContext,
+}: {
+  slot: TextSlot;
+  label: string;
+  placeholder: string;
+  helper: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+  ideaContext: WorldIngredients;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label htmlFor={slot} className="block font-semibold text-amber-900">
+          {label}
+        </label>
+        <IdeaButton slot={slot} current={ideaContext} onPick={onChange} />
+      </div>
+      <p className="text-xs text-slate-500 mb-2">{helper}</p>
+      <input
+        id={slot}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        className="w-full px-4 py-3 rounded-lg border border-amber-200 bg-amber-50/40 focus:outline-none focus:ring-2 focus:ring-amber-400"
+      />
+    </div>
   );
 }

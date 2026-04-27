@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="schoolSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#a9d8f0"/>
+      <stop offset="100%" stop-color="#dbeefa"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#schoolSky)"/>
+  <ellipse cx="350" cy="220" rx="160" ry="55" fill="#ffffff" opacity="0.85"/>
+  <ellipse cx="1200" cy="180" rx="200" ry="60" fill="#ffffff" opacity="0.8"/>
+  <rect x="0" y="700" width="1600" height="200" fill="#88c08e"/>
+  <rect x="240" y="380" width="1120" height="380" fill="#c1604a"/>
+  <polygon points="240,380 800,200 1360,380" fill="#7d3f30"/>
+  <rect x="730" y="540" width="140" height="220" fill="#3b2419"/>
+  <circle cx="855" cy="650" r="6" fill="#f7d97a"/>
+  <g fill="#f3e9c8">
+    <rect x="320" y="450" width="80" height="100" rx="6"/>
+    <rect x="440" y="450" width="80" height="100" rx="6"/>
+    <rect x="560" y="450" width="80" height="100" rx="6"/>
+    <rect x="960" y="450" width="80" height="100" rx="6"/>
+    <rect x="1080" y="450" width="80" height="100" rx="6"/>
+    <rect x="1200" y="450" width="80" height="100" rx="6"/>
+  </g>
+  <line x1="1450" y1="700" x2="1450" y2="350" stroke="#5a4a40" stroke-width="6"/>
+  <polygon points="1450,360 1530,380 1450,400" fill="#cf3d3d"/>
+  <text x="40" y="870" font-family="Georgia, serif" font-size="22" fill="#3b2419" opacity="0.85">placeholder: school</text>
+</svg>

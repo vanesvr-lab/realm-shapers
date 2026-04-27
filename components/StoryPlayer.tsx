@@ -398,16 +398,25 @@ export function StoryPlayer({
             transition={{ duration: 0.5 }}
             className="absolute inset-0"
           >
-            {bgUrl && (
-              <Image
-                src={bgUrl}
-                alt={scene.title}
-                fill
-                unoptimized
-                priority
-                sizes="100vw"
-                className="object-cover"
+            {scene.inline_svg ? (
+              <div
+                className="absolute inset-0 [&>svg]:w-full [&>svg]:h-full [&>svg]:block"
+                aria-label={scene.title}
+                role="img"
+                dangerouslySetInnerHTML={{ __html: sanitizeInlineSvg(scene.inline_svg) }}
               />
+            ) : (
+              bgUrl && (
+                <Image
+                  src={bgUrl}
+                  alt={scene.title}
+                  fill
+                  unoptimized
+                  priority
+                  sizes="100vw"
+                  className="object-cover"
+                />
+              )
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
 
@@ -649,4 +658,16 @@ export function StoryPlayer({
 function firstSentence(text: string): string {
   const m = text.match(/^[^.!?]*[.!?]/);
   return (m?.[0] ?? text).trim();
+}
+
+// Strip script tags, on* event handlers, and external javascript: refs from a
+// Claude-generated inline SVG before injecting via dangerouslySetInnerHTML.
+// Defense in depth: we asked Claude not to include any of these, but the
+// kid's setting input is part of the prompt so untrusted content technically
+// flows in. Keep this conservative; the SVGs are decorative backgrounds.
+function sanitizeInlineSvg(raw: string): string {
+  return raw
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, "")
+    .replace(/javascript:/gi, "");
 }

@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="citySky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fcd9b6"/>
+      <stop offset="55%" stop-color="#f1b48c"/>
+      <stop offset="100%" stop-color="#dba27a"/>
+    </linearGradient>
+    <linearGradient id="cityBuilding" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5a6a82"/>
+      <stop offset="100%" stop-color="#2f3a4d"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#citySky)"/>
+  <circle cx="1240" cy="240" r="80" fill="#fff3d6" opacity="0.9"/>
+  <g fill="url(#cityBuilding)" opacity="0.92">
+    <rect x="60" y="380" width="180" height="520"/>
+    <rect x="260" y="280" width="220" height="620"/>
+    <rect x="500" y="430" width="160" height="470"/>
+    <rect x="680" y="200" width="240" height="700"/>
+    <rect x="940" y="350" width="200" height="550"/>
+    <rect x="1160" y="290" width="180" height="610"/>
+    <rect x="1360" y="420" width="200" height="480"/>
+  </g>
+  <g fill="#ffe9a8" opacity="0.85">
+    <rect x="90" y="430" width="22" height="28"/>
+    <rect x="140" y="430" width="22" height="28"/>
+    <rect x="190" y="430" width="22" height="28"/>
+    <rect x="90" y="490" width="22" height="28"/>
+    <rect x="140" y="490" width="22" height="28"/>
+    <rect x="290" y="330" width="24" height="30"/>
+    <rect x="350" y="330" width="24" height="30"/>
+    <rect x="410" y="330" width="24" height="30"/>
+    <rect x="290" y="400" width="24" height="30"/>
+    <rect x="410" y="400" width="24" height="30"/>
+    <rect x="710" y="260" width="26" height="32"/>
+    <rect x="770" y="260" width="26" height="32"/>
+    <rect x="830" y="260" width="26" height="32"/>
+    <rect x="710" y="340" width="26" height="32"/>
+    <rect x="830" y="340" width="26" height="32"/>
+    <rect x="710" y="420" width="26" height="32"/>
+    <rect x="770" y="420" width="26" height="32"/>
+    <rect x="970" y="400" width="24" height="30"/>
+    <rect x="1030" y="400" width="24" height="30"/>
+    <rect x="1090" y="400" width="24" height="30"/>
+    <rect x="1190" y="340" width="24" height="30"/>
+    <rect x="1250" y="340" width="24" height="30"/>
+    <rect x="1310" y="340" width="24" height="30"/>
+    <rect x="1390" y="470" width="22" height="28"/>
+    <rect x="1450" y="470" width="22" height="28"/>
+    <rect x="1510" y="470" width="22" height="28"/>
+  </g>
+  <rect x="0" y="820" width="1600" height="80" fill="#3a3147" opacity="0.85"/>
+  <text x="40" y="870" font-family="Georgia, serif" font-size="22" fill="#ffe9a8" opacity="0.9">placeholder: city</text>
+</svg>

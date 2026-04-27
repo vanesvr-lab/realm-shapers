@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sportsSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#bfe2f4"/>
+      <stop offset="100%" stop-color="#e6f4fb"/>
+    </linearGradient>
+    <linearGradient id="sportsField" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7ec47a"/>
+      <stop offset="100%" stop-color="#5b9a59"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sportsSky)"/>
+  <ellipse cx="220" cy="200" rx="150" ry="40" fill="#ffffff" opacity="0.85"/>
+  <ellipse cx="1300" cy="150" rx="180" ry="48" fill="#ffffff" opacity="0.8"/>
+  <rect x="0" y="450" width="1600" height="450" fill="url(#sportsField)"/>
+  <ellipse cx="800" cy="640" rx="540" ry="180" fill="none" stroke="#ffffff" stroke-width="6" opacity="0.85"/>
+  <line x1="800" y1="460" x2="800" y2="900" stroke="#ffffff" stroke-width="6" opacity="0.85"/>
+  <circle cx="800" cy="640" r="80" fill="none" stroke="#ffffff" stroke-width="6" opacity="0.85"/>
+  <g stroke="#ffffff" stroke-width="6" fill="none" opacity="0.9">
+    <line x1="1300" y1="500" x2="1300" y2="380"/>
+    <line x1="1500" y1="500" x2="1500" y2="380"/>
+    <line x1="1300" y1="380" x2="1500" y2="380"/>
+  </g>
+  <circle cx="640" cy="700" r="22" fill="#ffffff" stroke="#1d1d1d" stroke-width="3"/>
+  <text x="40" y="870" font-family="Georgia, serif" font-size="22" fill="#ffffff" opacity="0.9">placeholder: sports field</text>
+</svg>

@@ -19,7 +19,15 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const world = await generateWorld(body);
+    const ingredients: WorldIngredients = {
+      setting: body.setting,
+      character: body.character,
+      character_asset_id: body.character_asset_id,
+      character_name: body.character_name,
+      goal: body.goal,
+      twist: body.twist,
+    };
+    const world = await generateWorld(ingredients);
     const startingScene = world.story.scenes.find(
       (s) => s.id === world.story.starting_scene_id
     );
@@ -32,7 +40,7 @@ export async function POST(req: NextRequest) {
         user_id: user.id,
         title: world.title,
         narration,
-        ingredients: body,
+        ingredients,
         map: world.story,
         audio_prompt: audioPrompt,
       })

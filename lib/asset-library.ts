@@ -72,6 +72,14 @@ export const BACKGROUNDS: AssetDef[] = [
   bg("snowy_tundra", "Snowy tundra", "a snowy tundra with soft pine trees and gentle snowfall"),
   bg("garden", "Flower garden", "a colorful flower garden with butterflies and a small path"),
   bg("sky_kingdom", "Floating sky kingdom", "a floating sky kingdom with cloud islands and rainbow bridges"),
+  // B-010 placeholder backgrounds. Simple SVGs covering common kid settings
+  // not in the original 15 (city, school, modern home, sports field, lab).
+  // Real watercolor art swaps in a later batch via scripts/generate-assets.ts.
+  bg("city", "City street", "a busy city street with tall buildings and warm dusk light", ["urban", "street", "downtown"]),
+  bg("school", "School building", "a friendly schoolhouse with red brick and a flag", ["classroom", "playground"]),
+  bg("modern_home", "Modern home", "a cozy modern home with big windows and a yard", ["house", "indoor", "kitchen", "living room"]),
+  bg("sports_field", "Sports field", "a green sports field under a wide blue sky", ["soccer", "field", "stadium", "playground"]),
+  bg("lab_hospital", "Science lab", "a bright science laboratory with beakers and equipment", ["hospital", "clinic", "research"]),
 ];
 
 export const CHARACTERS: AssetDef[] = [

@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
+  ASSETS_BY_ID,
   BACKGROUND_IDS,
   CHARACTER_IDS,
   PROP_IDS,
@@ -7,6 +8,7 @@ import {
   isValidCharacterId,
   isValidPropId,
 } from "@/lib/asset-library";
+import { matchSetting, type RankedBackground } from "@/lib/scene-matcher";
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -17,6 +19,11 @@ const MODEL = "claude-opus-4-7";
 export type WorldIngredients = {
   setting: string;
   character: string;
+  // B-010: structured character carries the picker selection. Optional so old
+  // worlds (free-text character) still load. When present, asset_id overrides
+  // Claude's default_character_id pick, and name is mentioned in narration.
+  character_asset_id?: string;
+  character_name?: string;
   goal: string;
   twist: string;
 };
@@ -82,6 +89,10 @@ export type StoryScene = {
   prop_overrides?: PropOverride[];
   is_choice_scene?: boolean;
   choice_options?: ChoiceOption[];
+  // B-010: when the matched background catalog has no good fit for the kid's
+  // setting input, Claude returns an inline SVG per scene as a fallback. When
+  // present, renderers prefer this over the asset-library lookup.
+  inline_svg?: string;
 };
 
 export type StoryTree = {
@@ -105,15 +116,18 @@ export type GeneratedWorld = {
 export async function generateWorld(
   ingredients: WorldIngredients
 ): Promise<GeneratedWorld> {
+  const match = matchSetting(ingredients.setting);
+  const requireInlineSvg = !match.hasGoodMatch;
+  const buildPrompt = () => buildStoryPrompt(ingredients, match.ranked, requireInlineSvg);
   try {
-    const text = await callClaude(buildStoryPrompt(ingredients), 6144);
-    const story = parseStoryResponse(text);
+    const text = await callClaude(buildPrompt(), 6144);
+    const story = parseStoryResponse(text, ingredients);
     return { title: story.title, story };
   } catch (firstErr) {
     console.error("StoryTree generation failed once, retrying", firstErr);
     try {
-      const text = await callClaude(buildStoryPrompt(ingredients), 6144);
-      const story = parseStoryResponse(text);
+      const text = await callClaude(buildPrompt(), 6144);
+      const story = parseStoryResponse(text, ingredients);
       return { title: story.title, story };
     } catch (secondErr) {
       console.error("StoryTree generation failed twice, using fallback", secondErr);
@@ -204,7 +218,32 @@ async function callClaude(prompt: string, maxTokens: number): Promise<string> {
     .join("");
 }
 
-function buildStoryPrompt(i: WorldIngredients): string {
+function buildStoryPrompt(
+  i: WorldIngredients,
+  rankedBackgrounds: RankedBackground[],
+  requireInlineSvg: boolean
+): string {
+  const heroAssetId = i.character_asset_id && isValidCharacterId(i.character_asset_id)
+    ? i.character_asset_id
+    : null;
+  const heroAsset = heroAssetId ? ASSETS_BY_ID[heroAssetId] : null;
+  const heroNameLine = i.character_name?.trim()
+    ? `Hero name (use in narration): ${i.character_name.trim()}`
+    : "Hero is unnamed; refer to them generically.";
+  const heroAssetLine = heroAsset
+    ? `Hero asset (FIXED, picked by the kid): ${heroAsset.id} — ${heroAsset.alt}. Set "default_character_id" to "${heroAsset.id}" exactly. Do not substitute.`
+    : `Hero asset will be picked from the curated character library.`;
+
+  const rankedLine = rankedBackgrounds.length > 0
+    ? rankedBackgrounds
+        .map((r) => `${r.id} (${r.category}, score ${r.score.toFixed(2)})`)
+        .join(", ")
+    : "(no library match — use inline_svg fallback)";
+
+  const backgroundInstructions = requireInlineSvg
+    ? `BACKGROUND FALLBACK MODE. The kid's setting did not match any background in the library well enough. For EACH scene, you MUST set "inline_svg" to a small, hand-drawn-feeling SVG that fits the kid's setting input. The SVG must be a complete <svg> element with viewBox="0 0 1600 900", preserveAspectRatio="xMidYMid slice", soft watercolor-style colors, no text. Keep each SVG under 2000 characters. You may still set "background_id" to any valid library id as a graceful fallback for older clients, but the inline_svg is what the kid will see.`
+    : `BACKGROUND PICKING MODE. The kid's setting matched the library well. For EACH scene, choose a "background_id" from the ranked list above (top match first, drift to lower-ranked options for variety across scenes if needed). Do NOT set "inline_svg". Background ids outside the ranked list are allowed only if a scene specifically calls for it (e.g. an indoor library scene inside an outdoor adventure), but prefer the ranked list.`;
+
   return `You are the Oracle in a creative game called Realm Shapers. A young player (around age 11) gives you four ingredients. You craft a longer point-and-click adventure for them where their choices matter.
 
 Ingredients:
@@ -212,6 +251,14 @@ Ingredients:
 - Character: ${i.character}
 - Goal: ${i.goal}
 - Twist: ${i.twist}
+
+HERO LOCKED.
+${heroAssetLine}
+${heroNameLine}
+
+BACKGROUNDS RANKED FOR THIS SETTING (top match first): ${rankedLine}
+
+${backgroundInstructions}
 
 You must compose a branching story tree of 8 to 10 scenes total:
 - 5 to 7 main path scenes that move toward 2 to 3 endings.
@@ -265,7 +312,8 @@ Respond with ONLY JSON in EXACTLY this shape, no preamble, no markdown, no code 
       "id": "snake_case_id, unique",
       "title": "string, 2 to 5 words",
       "narration": "string, 1 to 3 sentences. Address the player as 'you'. Warm and magical, age-appropriate.",
-      "background_id": "must be one of the allowed background ids",
+      "background_id": "must be one of the allowed background ids OR a graceful fallback if you also provide inline_svg",
+      "inline_svg": "OPTIONAL string. Only include in BACKGROUND FALLBACK MODE. Complete <svg viewBox=\"0 0 1600 900\" preserveAspectRatio=\"xMidYMid slice\"> ... </svg> element with watercolor-style color fills and no text. Under 2000 characters.",
       "ambient_audio_prompt": "5 to 12 words describing ambient sound only, never music or speech",
       "default_props": ["0 to 3 prop ids from the allowed list"],
       "pickups": ["0 to 2 prop ids from the allowed list, must NOT also appear in this scene's default_props"],
@@ -316,7 +364,8 @@ Hard rules:
 - An ending scene (no normal choices) MUST NOT also be a choice scene.
 - A choice scene MUST NOT be the starting scene and MUST NOT be an ending.
 - Every next_scene_id, every "goes_to" in choice_options, and every endings.scene_id MUST equal one of the scene ids in this tree.
-- Every background_id, default_character_id, and prop id MUST come from the allowed lists. No new ids, no synonyms.
+- Every default_character_id and prop id MUST come from the allowed lists. No new ids, no synonyms.
+- Each scene MUST have either a "background_id" from the allowed list OR a non-empty "inline_svg" string starting with "<svg". Both is fine; the renderer prefers inline_svg when present.
 - Every interactable_kind MUST be one of: door, chest, path, sparkle, creature.
 - Every "requires" entry, if present, MUST be a prop id that appears in some scene's pickups array.
 - Every flag_set, every choice_options.sets_flag, every key in narration_variants.when, prop_overrides.when, and endings.requires MUST be a flag id defined in the top-level "flags" array.
@@ -376,7 +425,7 @@ function stripFences(raw: string): string {
   return raw.replace(/```json|```/g, "").trim();
 }
 
-function parseStoryResponse(raw: string): StoryTree {
+function parseStoryResponse(raw: string, ingredients?: WorldIngredients): StoryTree {
   const parsed = JSON.parse(stripFences(raw)) as unknown;
   if (!parsed || typeof parsed !== "object") {
     throw new Error("Story response is not an object");
@@ -384,7 +433,17 @@ function parseStoryResponse(raw: string): StoryTree {
   const obj = parsed as Record<string, unknown>;
   const title = requireString(obj.title, "title");
   const starting_scene_id = requireString(obj.starting_scene_id, "starting_scene_id");
-  const default_character_id = requireString(obj.default_character_id, "default_character_id");
+  let default_character_id = requireString(obj.default_character_id, "default_character_id");
+  // B-010: the picker selection on the landing form is the source of truth.
+  // Override Claude's pick with the kid's chosen asset_id so a "purple dragon"
+  // pick can never silently fall back to "hero_girl" the way it did during
+  // Kellen's playtest.
+  if (
+    ingredients?.character_asset_id &&
+    isValidCharacterId(ingredients.character_asset_id)
+  ) {
+    default_character_id = ingredients.character_asset_id;
+  }
   if (!isValidCharacterId(default_character_id)) {
     throw new Error(`default_character_id ${default_character_id} not in library`);
   }
@@ -593,10 +652,18 @@ function parseScene(raw: unknown, idx: number, flagIds?: Set<string>): StoryScen
   const id = requireString(s.id, `scene[${idx}].id`);
   const title = requireString(s.title, `scene[${idx}].title`);
   const narration = requireString(s.narration, `scene[${idx}].narration`);
-  const background_id = requireString(s.background_id, `scene[${idx}].background_id`);
-  if (!isValidBackgroundId(background_id)) {
-    throw new Error(`scene[${idx}] background_id ${background_id} not in library`);
+  const background_id_raw = typeof s.background_id === "string" ? s.background_id.trim() : "";
+  // B-010: scenes may either reference a library background_id OR provide a
+  // hand-drawn inline_svg fallback. At least one must be valid.
+  const inline_svg_raw = typeof s.inline_svg === "string" ? s.inline_svg.trim() : "";
+  const hasValidBackground = background_id_raw && isValidBackgroundId(background_id_raw);
+  const hasInlineSvg = inline_svg_raw.startsWith("<svg") && inline_svg_raw.length > 40;
+  if (!hasValidBackground && !hasInlineSvg) {
+    throw new Error(
+      `scene[${idx}] needs either a valid background_id (got ${background_id_raw || "missing"}) or a non-empty inline_svg starting with <svg`
+    );
   }
+  const background_id = hasValidBackground ? background_id_raw : (BACKGROUND_IDS[0] ?? "forest");
   const ambient_audio_prompt = requireString(s.ambient_audio_prompt, `scene[${idx}].ambient_audio_prompt`);
 
   const default_props = parsePropList(s.default_props, 3);
@@ -621,6 +688,10 @@ function parseScene(raw: unknown, idx: number, flagIds?: Set<string>): StoryScen
     choices,
     is_side_quest,
   };
+
+  if (hasInlineSvg) {
+    out.inline_svg = inline_svg_raw;
+  }
 
   if (is_choice_scene) {
     out.is_choice_scene = true;

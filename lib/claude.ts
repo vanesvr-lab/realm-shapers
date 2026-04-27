@@ -265,6 +265,8 @@ You must compose a branching story tree of 8 to 10 scenes total:
 - 2 to 3 side quest scenes that branch off the main path. Each side quest scene MUST set "is_side_quest": true. A side quest gives the player a reward (a unique pickup or a special moment) and then either points back to the main path or leads to the secret ending.
 - 2 to 3 of the scenes are endings: their "choices" array is empty.
 
+TREE SHAPE RULE (CRITICAL). Order the entries in the "scenes" array by narrative depth. The first two entries (index 0 and index 1) MUST be exploration / collect scenes that progress toward the goal. They MUST have non-empty "choices" and MUST NOT be endings or choice scenes. Ending scenes (choices: []) MUST appear at index 4 or later in the scenes array. This prevents a kid from accidentally finishing in 2 or 3 clicks before any choice has felt earned.
+
 In play mode the kid clicks objects in each scene to advance. Each choice you write becomes a clickable interactable. Choose its kind from: "door", "chest", "path", "sparkle", "creature".
 
 Pickups: some scenes give the player items via a "pickups" list. A later choice can require those items. Across the whole tree, 3 to 5 total pickups, at most 2 to 3 choices with a "requires" field.
@@ -357,8 +359,10 @@ Respond with ONLY JSON in EXACTLY this shape, no preamble, no markdown, no code 
 Hard rules:
 - scenes array MUST have between 8 and 10 entries (inclusive).
 - Exactly 2 or 3 of those scenes MUST have "is_side_quest": true. The rest MUST have "is_side_quest": false.
-- starting_scene_id MUST match the id of one main (non side quest, non choice scene) scene.
+- starting_scene_id MUST match the id of one main (non side quest, non choice scene) scene at index 0 or index 1 in the scenes array.
 - 2 to 3 of the scenes MUST be endings: their choices array is empty.
+- Ending scenes (empty choices) MUST appear at index 4 or later in the scenes array. Indices 0-3 MUST NOT be endings.
+- Indices 0 and 1 MUST NOT be choice scenes. They MUST have 2 or 3 normal "choices".
 - A non-ending, non-choice scene MUST have exactly 2 or 3 normal "choices" entries.
 - A choice scene (is_choice_scene true) MUST have "choices": [] and exactly 2 "choice_options".
 - An ending scene (no normal choices) MUST NOT also be a choice scene.
@@ -500,6 +504,30 @@ function parseStoryResponse(raw: string, ingredients?: WorldIngredients): StoryT
   }
   if (startingScene?.prop_overrides && startingScene.prop_overrides.length > 0) {
     throw new Error("starting scene must not have prop_overrides");
+  }
+
+  // B-010 scope 5: tree shape rule. Indices 0-3 must not be ending scenes,
+  // and indices 0-1 must be regular non-choice non-ending scenes. Belt for
+  // the runtime MIN_SCENES_BEFORE_ENDING gate in StoryPlayer.
+  for (let idx = 0; idx < scenes.length; idx++) {
+    const s = scenes[idx];
+    const isEnding = s.choices.length === 0 && !s.is_choice_scene;
+    if (idx <= 3 && isEnding) {
+      throw new Error(
+        `scene[${idx}] (${s.id}) is an ending but ending scenes must appear at index 4 or later`
+      );
+    }
+    if (idx <= 1 && (s.is_choice_scene || s.choices.length === 0)) {
+      throw new Error(
+        `scene[${idx}] (${s.id}) must be a regular exploration scene (non-empty choices, not a choice scene)`
+      );
+    }
+  }
+  const startingIdx = scenes.findIndex((s) => s.id === starting_scene_id);
+  if (startingIdx > 1) {
+    throw new Error(
+      `starting_scene_id ${starting_scene_id} must be at scene index 0 or 1, found at ${startingIdx}`
+    );
   }
 
   // Choice scenes: must not be endings, must have exactly 2 choice_options.

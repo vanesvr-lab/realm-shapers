@@ -36,6 +36,10 @@ type CompletionPayload = {
 
 const TUTORIAL_KEY = "realm-shapers:saw-tutorial";
 const SUMMONS_MAX = 5;
+// B-010 scope 5: runtime safety belt complementing the structural prompt
+// rule (endings must live at scene index 4 or later). If Claude breaks the
+// rule, the kid still cannot accidentally finish in 2 or 3 clicks.
+const MIN_SCENES_BEFORE_ENDING = 4;
 
 const CHOICE_POSITIONS: React.CSSProperties[] = [
   { left: "12%", bottom: "22%" },
@@ -328,6 +332,17 @@ export function StoryPlayer({
     });
   }
 
+  function wouldEndTooEarly(nextSceneId: string): boolean {
+    const dest = sceneById.get(nextSceneId);
+    if (!dest) return false;
+    const destIsEnding = dest.choices.length === 0 && !dest.is_choice_scene;
+    if (!destIsEnding) return false;
+    // Secret ending is earned, never gated.
+    if (story.secret_ending && dest.id === story.secret_ending.id) return false;
+    const wouldVisit = new Set(visited).add(dest.id).size;
+    return wouldVisit < MIN_SCENES_BEFORE_ENDING;
+  }
+
   function tryActivate(choiceId: string) {
     const choice = scene.choices.find((c) => c.id === choiceId);
     if (!choice) return;
@@ -343,10 +358,24 @@ export function StoryPlayer({
       });
       return;
     }
+    if (wouldEndTooEarly(choice.next_scene_id)) {
+      speakOracle({
+        text: "There is still more of this realm to explore. Keep going.",
+        kind: "hint",
+      });
+      return;
+    }
     visitScene(choice.next_scene_id);
   }
 
   function handleChoice(opt: ChoiceOption) {
+    if (wouldEndTooEarly(opt.goes_to)) {
+      speakOracle({
+        text: "There is still more of this realm to explore. Keep going.",
+        kind: "hint",
+      });
+      return;
+    }
     onSetFlag(opt.sets_flag, true);
     speakOracle({
       text: `You chose: ${opt.label.toLowerCase()}.`,

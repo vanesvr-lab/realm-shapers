@@ -10,6 +10,7 @@ type WorldRow = {
   map: StoryTree | null;
   audio_prompt: string | null;
   ingredients: WorldIngredients | null;
+  level: number | null;
 };
 
 export default async function PlayPage({
@@ -23,7 +24,7 @@ export default async function PlayPage({
   const supabase = serviceRoleSupabase();
   const { data: world } = await supabase
     .from("worlds")
-    .select("id, title, narration, map, audio_prompt, ingredients")
+    .select("id, title, narration, map, audio_prompt, ingredients, level")
     .eq("id", worldId)
     .maybeSingle<WorldRow>();
 
@@ -74,6 +75,7 @@ export default async function PlayPage({
       ingredients={ingredients}
       username={username}
       initialUnlocked={[]}
+      initialLevel={world.level ?? 1}
     />
   );
 }

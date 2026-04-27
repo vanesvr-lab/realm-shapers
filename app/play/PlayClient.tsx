@@ -27,12 +27,13 @@ const RealmCard = dynamic(
 
 export function PlayClient({
   worldId,
-  title,
-  narration,
-  story,
+  title: initialTitle,
+  narration: initialNarration,
+  story: initialStory,
   ingredients,
   username,
   initialUnlocked,
+  initialLevel,
 }: {
   worldId: string;
   title: string;
@@ -41,7 +42,15 @@ export function PlayClient({
   ingredients: WorldIngredients;
   username: string | null;
   initialUnlocked: AchievementDef[];
+  initialLevel: number;
 }) {
+  const [story, setStory] = useState<StoryTree>(initialStory);
+  const [title, setTitle] = useState<string>(initialTitle);
+  const [narration, setNarration] = useState<string>(initialNarration);
+  const [level, setLevel] = useState<number>(initialLevel);
+  const [goDeeperState, setGoDeeperState] = useState<{ loading: boolean; error: string | null }>(
+    { loading: false, error: null }
+  );
   const router = useRouter();
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<"edit" | "play">("edit");
@@ -197,6 +206,50 @@ export function PlayClient({
     setMode("edit");
   }
 
+  async function handleGoDeeper() {
+    if (goDeeperState.loading) return;
+    setGoDeeperState({ loading: true, error: null });
+    try {
+      const res = await fetch("/api/continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ world_id: worldId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setGoDeeperState({ loading: false, error: data.error ?? "Could not go deeper" });
+        return;
+      }
+      const nextStory = data.story as StoryTree;
+      setStory(nextStory);
+      setTitle(typeof data.title === "string" ? data.title : title);
+      setNarration(
+        nextStory.scenes.find((s) => s.id === nextStory.starting_scene_id)?.narration ?? narration
+      );
+      setLevel(typeof data.level === "number" ? data.level : level + 1);
+      setFlags({});
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.removeItem(flagsKey);
+          sessionStorage.removeItem(`realm-shapers:editor-props:${worldId}`);
+        } catch {
+          // ignore
+        }
+      }
+      setEditorSnapshot({
+        propsPlaced: nextStory.scenes[0]?.default_props.length ?? 0,
+        characterId: nextStory.default_character_id,
+        backgroundId: nextStory.scenes[0]?.background_id ?? "forest",
+        propIds: nextStory.scenes[0]?.default_props ?? [],
+      });
+      setCompletion(null);
+      setMode("edit");
+      setGoDeeperState({ loading: false, error: null });
+    } catch (err) {
+      setGoDeeperState({ loading: false, error: String(err) });
+    }
+  }
+
   // Fire greeting on first edit-mode mount when not coming straight from ceremony.
   useEffect(() => {
     if (showCeremony) return;
@@ -220,7 +273,14 @@ export function PlayClient({
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-rose-50 p-3 sm:p-6">
       <header className="max-w-5xl mx-auto mb-4 flex flex-wrap items-center gap-3 justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-amber-900 text-balance">{title}</h1>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-2xl sm:text-3xl font-bold text-amber-900 text-balance">{title}</h1>
+            {level >= 2 && (
+              <span className="px-2 py-0.5 rounded-full bg-purple-700 text-white text-xs font-bold uppercase tracking-wider shadow">
+                Lvl {level}
+              </span>
+            )}
+          </div>
           <p className="text-xs uppercase tracking-widest text-amber-700">Edit mode</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -248,6 +308,7 @@ export function PlayClient({
 
       <div className="max-w-5xl mx-auto">
         <SceneEditor
+          key={`editor-l${level}`}
           worldId={worldId}
           story={story}
           initialNarration={narration || story.scenes[0].narration}
@@ -258,6 +319,7 @@ export function PlayClient({
 
       {mode === "play" && (
         <StoryPlayer
+          key={`player-l${level}`}
           worldId={worldId}
           story={story}
           flags={flags}
@@ -299,6 +361,14 @@ export function PlayClient({
               <div className="flex flex-wrap gap-2 justify-center">
                 <button
                   type="button"
+                  onClick={handleGoDeeper}
+                  disabled={goDeeperState.loading}
+                  className="px-4 py-3 rounded-xl bg-purple-700 text-white font-bold shadow hover:bg-purple-800 disabled:opacity-60"
+                >
+                  {goDeeperState.loading ? "Going deeper..." : "🌀 Go Deeper"}
+                </button>
+                <button
+                  type="button"
                   onClick={handleReplay}
                   className="px-4 py-3 rounded-xl bg-rose-100 text-rose-900 font-semibold hover:bg-rose-200"
                 >
@@ -331,6 +401,11 @@ export function PlayClient({
                   🚪 Exit
                 </Link>
               </div>
+              {goDeeperState.error && (
+                <p className="text-xs text-rose-200 bg-rose-900/40 rounded px-3 py-1 max-w-md text-center">
+                  {goDeeperState.error}
+                </p>
+              )}
             </div>
           </motion.div>
         )}

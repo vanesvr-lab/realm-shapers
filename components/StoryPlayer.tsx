@@ -40,6 +40,9 @@ const SUMMONS_MAX = 5;
 // rule (endings must live at scene index 4 or later). If Claude breaks the
 // rule, the kid still cannot accidentally finish in 2 or 3 clicks.
 const MIN_SCENES_BEFORE_ENDING = 4;
+// B-010 scope 7: Go Deeper trees gate the ending behind 2 of 5 minimum
+// pickups. Belt the kid from finishing without earning it.
+const DEEP_MIN_PICKUPS_FOR_ENDING = 2;
 
 const CHOICE_POSITIONS: React.CSSProperties[] = [
   { left: "12%", bottom: "22%" },
@@ -363,15 +366,36 @@ export function StoryPlayer({
     });
   }
 
-  function wouldEndTooEarly(nextSceneId: string): boolean {
+  type EndingGateReason = "explore_more" | "collect_more" | null;
+
+  function endingGateReason(nextSceneId: string): EndingGateReason {
     const dest = sceneById.get(nextSceneId);
-    if (!dest) return false;
+    if (!dest) return null;
     const destIsEnding = dest.choices.length === 0 && !dest.is_choice_scene;
-    if (!destIsEnding) return false;
+    if (!destIsEnding) return null;
     // Secret ending is earned, never gated.
-    if (story.secret_ending && dest.id === story.secret_ending.id) return false;
+    if (story.secret_ending && dest.id === story.secret_ending.id) return null;
     const wouldVisit = new Set(visited).add(dest.id).size;
-    return wouldVisit < MIN_SCENES_BEFORE_ENDING;
+    if (wouldVisit < MIN_SCENES_BEFORE_ENDING) return "explore_more";
+    if ((story.level ?? 1) >= 2 && inventory.length < DEEP_MIN_PICKUPS_FOR_ENDING) {
+      return "collect_more";
+    }
+    return null;
+  }
+
+  function speakGate(reason: EndingGateReason) {
+    if (reason === "explore_more") {
+      speakOracle({
+        text: "There is still more of this realm to explore. Keep going.",
+        kind: "hint",
+      });
+    } else if (reason === "collect_more") {
+      const need = DEEP_MIN_PICKUPS_FOR_ENDING - inventory.length;
+      speakOracle({
+        text: `This deeper realm asks for more. Find ${need === 1 ? "one more thing" : `${need} more things`} before the ending opens.`,
+        kind: "hint",
+      });
+    }
   }
 
   function tryActivate(choiceId: string) {
@@ -389,22 +413,18 @@ export function StoryPlayer({
       });
       return;
     }
-    if (wouldEndTooEarly(choice.next_scene_id)) {
-      speakOracle({
-        text: "There is still more of this realm to explore. Keep going.",
-        kind: "hint",
-      });
+    const gateA = endingGateReason(choice.next_scene_id);
+    if (gateA) {
+      speakGate(gateA);
       return;
     }
     visitScene(choice.next_scene_id);
   }
 
   function handleChoice(opt: ChoiceOption) {
-    if (wouldEndTooEarly(opt.goes_to)) {
-      speakOracle({
-        text: "There is still more of this realm to explore. Keep going.",
-        kind: "hint",
-      });
+    const gateB = endingGateReason(opt.goes_to);
+    if (gateB) {
+      speakGate(gateB);
       return;
     }
     onSetFlag(opt.sets_flag, true);

@@ -106,6 +106,9 @@ export type StoryTree = {
   // "no flags / no branching endings".
   flags?: StoryFlag[];
   endings?: StoryEnding[];
+  // B-010 scope 7: difficulty level. 1 by default; 2+ for "Go Deeper"
+  // regenerations. Drives the runtime 2-of-5 pickup completion gate.
+  level?: number;
 };
 
 export type GeneratedWorld = {
@@ -114,20 +117,24 @@ export type GeneratedWorld = {
 };
 
 export async function generateWorld(
-  ingredients: WorldIngredients
+  ingredients: WorldIngredients,
+  level: number = 1
 ): Promise<GeneratedWorld> {
   const match = matchSetting(ingredients.setting);
   const requireInlineSvg = !match.hasGoodMatch;
-  const buildPrompt = () => buildStoryPrompt(ingredients, match.ranked, requireInlineSvg);
+  const buildPrompt = () => buildStoryPrompt(ingredients, match.ranked, requireInlineSvg, level);
+  // Level 2+ trees are larger (10-12 scenes, 5 choices each); give Claude
+  // more room. Keep level 1 at the existing 6144 budget.
+  const maxTokens = level >= 2 ? 9216 : 6144;
   try {
-    const text = await callClaude(buildPrompt(), 6144);
-    const story = parseStoryResponse(text, ingredients);
+    const text = await callClaude(buildPrompt(), maxTokens);
+    const story = parseStoryResponse(text, ingredients, level);
     return { title: story.title, story };
   } catch (firstErr) {
     console.error("StoryTree generation failed once, retrying", firstErr);
     try {
-      const text = await callClaude(buildPrompt(), 6144);
-      const story = parseStoryResponse(text, ingredients);
+      const text = await callClaude(buildPrompt(), maxTokens);
+      const story = parseStoryResponse(text, ingredients, level);
       return { title: story.title, story };
     } catch (secondErr) {
       console.error("StoryTree generation failed twice, using fallback", secondErr);
@@ -221,8 +228,10 @@ async function callClaude(prompt: string, maxTokens: number): Promise<string> {
 function buildStoryPrompt(
   i: WorldIngredients,
   rankedBackgrounds: RankedBackground[],
-  requireInlineSvg: boolean
+  requireInlineSvg: boolean,
+  level: number = 1
 ): string {
+  const isDeep = level >= 2;
   const heroAssetId = i.character_asset_id && isValidCharacterId(i.character_asset_id)
     ? i.character_asset_id
     : null;
@@ -260,10 +269,13 @@ BACKGROUNDS RANKED FOR THIS SETTING (top match first): ${rankedLine}
 
 ${backgroundInstructions}
 
-You must compose a branching story tree of 8 to 10 scenes total:
-- 5 to 7 main path scenes that move toward 2 to 3 endings.
+${isDeep ? `THIS IS A "GO DEEPER" REGENERATION (level ${level}). The kid finished an earlier version of this realm and asked for a bigger, harder one. Make it richer than a normal realm. Same world, deeper.` : ""}
+
+You must compose a branching story tree of ${isDeep ? "10 to 12" : "8 to 10"} scenes total:
+- ${isDeep ? "7 to 9" : "5 to 7"} main path scenes that move toward 2 to 3 endings.
 - 2 to 3 side quest scenes that branch off the main path. Each side quest scene MUST set "is_side_quest": true. A side quest gives the player a reward (a unique pickup or a special moment) and then either points back to the main path or leads to the secret ending.
 - 2 to 3 of the scenes are endings: their "choices" array is empty.
+${isDeep ? "- Every non-ending non-choice scene MUST have EXACTLY 5 outbound choices (instead of the usual 2-3). The kid wants more options to weigh.\n- The tree MUST contain at least 5 DISTINCT pickup ids across all scenes (instead of 3-5). The ending will be gated client-side behind 2 of those pickups, so the kid must hunt." : ""}
 
 TREE SHAPE RULE (CRITICAL). Order the entries in the "scenes" array by narrative depth. The first two entries (index 0 and index 1) MUST be exploration / collect scenes that progress toward the goal. They MUST have non-empty "choices" and MUST NOT be endings or choice scenes. Ending scenes (choices: []) MUST appear at index 4 or later in the scenes array. This prevents a kid from accidentally finishing in 2 or 3 clicks before any choice has felt earned.
 
@@ -357,13 +369,13 @@ Respond with ONLY JSON in EXACTLY this shape, no preamble, no markdown, no code 
 }
 
 Hard rules:
-- scenes array MUST have between 8 and 10 entries (inclusive).
+- scenes array MUST have between ${isDeep ? "10 and 12" : "8 and 10"} entries (inclusive).
 - Exactly 2 or 3 of those scenes MUST have "is_side_quest": true. The rest MUST have "is_side_quest": false.
 - starting_scene_id MUST match the id of one main (non side quest, non choice scene) scene at index 0 or index 1 in the scenes array.
 - 2 to 3 of the scenes MUST be endings: their choices array is empty.
 - Ending scenes (empty choices) MUST appear at index 4 or later in the scenes array. Indices 0-3 MUST NOT be endings.
-- Indices 0 and 1 MUST NOT be choice scenes. They MUST have 2 or 3 normal "choices".
-- A non-ending, non-choice scene MUST have exactly 2 or 3 normal "choices" entries.
+- Indices 0 and 1 MUST NOT be choice scenes. They MUST have ${isDeep ? "exactly 5" : "2 or 3"} normal "choices".
+- A non-ending, non-choice scene MUST have exactly ${isDeep ? "5" : "2 or 3"} normal "choices" entries.${isDeep ? "\n- The tree MUST contain at least 5 DISTINCT pickup ids across all scenes." : ""}
 - A choice scene (is_choice_scene true) MUST have "choices": [] and exactly 2 "choice_options".
 - An ending scene (no normal choices) MUST NOT also be a choice scene.
 - A choice scene MUST NOT be the starting scene and MUST NOT be an ending.
@@ -429,7 +441,15 @@ function stripFences(raw: string): string {
   return raw.replace(/```json|```/g, "").trim();
 }
 
-function parseStoryResponse(raw: string, ingredients?: WorldIngredients): StoryTree {
+function parseStoryResponse(
+  raw: string,
+  ingredients?: WorldIngredients,
+  level: number = 1
+): StoryTree {
+  const isDeep = level >= 2;
+  const minScenes = isDeep ? 10 : 8;
+  const maxScenes = isDeep ? 12 : 10;
+  const requiredChoiceCount = isDeep ? 5 : null; // null = legacy 2-or-3
   const parsed = JSON.parse(stripFences(raw)) as unknown;
   if (!parsed || typeof parsed !== "object") {
     throw new Error("Story response is not an object");
@@ -454,14 +474,14 @@ function parseStoryResponse(raw: string, ingredients?: WorldIngredients): StoryT
   if (!Array.isArray(obj.scenes)) {
     throw new Error("scenes is not an array");
   }
-  if (obj.scenes.length < 8 || obj.scenes.length > 10) {
-    throw new Error(`scenes length ${obj.scenes.length} must be between 8 and 10`);
+  if (obj.scenes.length < minScenes || obj.scenes.length > maxScenes) {
+    throw new Error(`scenes length ${obj.scenes.length} must be between ${minScenes} and ${maxScenes} (level ${level})`);
   }
 
   const flags = parseFlags(obj.flags);
   const flagIds = new Set(flags.map((f) => f.id));
 
-  const scenes = obj.scenes.map((s, idx) => parseScene(s, idx, flagIds));
+  const scenes = obj.scenes.map((s, idx) => parseScene(s, idx, flagIds, requiredChoiceCount));
   const ids = new Set(scenes.map((s) => s.id));
   if (ids.size !== scenes.length) {
     throw new Error("scene ids are not unique");
@@ -580,6 +600,14 @@ function parseStoryResponse(raw: string, ingredients?: WorldIngredients): StoryT
     }
   }
 
+  // B-010 scope 7: Go Deeper trees gate the ending behind 2 of 5 distinct
+  // pickups, so the parser requires the tree to define at least 5.
+  if (isDeep && allPickupIds.size < 5) {
+    throw new Error(
+      `level ${level} tree must define at least 5 distinct pickups (got ${allPickupIds.size})`
+    );
+  }
+
   return {
     title,
     starting_scene_id,
@@ -588,6 +616,7 @@ function parseStoryResponse(raw: string, ingredients?: WorldIngredients): StoryT
     secret_ending,
     flags,
     endings,
+    level,
   };
 }
 
@@ -672,7 +701,12 @@ function parseFlagRecord(
   return out;
 }
 
-function parseScene(raw: unknown, idx: number, flagIds?: Set<string>): StoryScene {
+function parseScene(
+  raw: unknown,
+  idx: number,
+  flagIds?: Set<string>,
+  requiredChoiceCount?: number | null
+): StoryScene {
   if (!raw || typeof raw !== "object") {
     throw new Error(`scene ${idx} not an object`);
   }
@@ -698,8 +732,18 @@ function parseScene(raw: unknown, idx: number, flagIds?: Set<string>): StoryScen
   const pickups = parsePropList(s.pickups, 2).filter((p) => !default_props.includes(p));
 
   const choices_raw = Array.isArray(s.choices) ? s.choices : [];
-  if (choices_raw.length !== 0 && (choices_raw.length < 2 || choices_raw.length > 3)) {
-    throw new Error(`scene[${idx}] must have 0, 2, or 3 choices`);
+  if (choices_raw.length !== 0) {
+    // Choice scenes have empty choices; the choice scene parser path runs in
+    // parseStoryResponse after this. For non-empty choices arrays:
+    if (typeof requiredChoiceCount === "number") {
+      if (choices_raw.length !== requiredChoiceCount) {
+        throw new Error(
+          `scene[${idx}] must have exactly ${requiredChoiceCount} choices (got ${choices_raw.length})`
+        );
+      }
+    } else if (choices_raw.length < 2 || choices_raw.length > 3) {
+      throw new Error(`scene[${idx}] must have 0, 2, or 3 choices`);
+    }
   }
   const choices = choices_raw.map((c, ci) => parseChoice(c, idx, ci));
   const is_side_quest = s.is_side_quest === true;

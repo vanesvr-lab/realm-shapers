@@ -9,6 +9,40 @@ import {
   isValidPropId,
 } from "@/lib/asset-library";
 import { matchSetting, type RankedBackground } from "@/lib/scene-matcher";
+import {
+  THEMES_BY_ID,
+  SUB_SCENES_BY_ID,
+  type Theme,
+  type SubScene,
+} from "@/lib/themes-catalog";
+import { CHARACTERS_BY_ID, type Character } from "@/lib/characters-catalog";
+
+// B-011 scope 6: theme-driven generation context. When ingredients carries
+// theme_id + entry_sub_scene_id (set by the new landing form via
+// /api/generate), the story prompt switches to a library-reference block
+// listing the picked theme's 15 sub-scenes with their connects_to edges, and
+// locks scene 1 to entry_sub_scene_id. Pre-B-011 worlds (no theme_id) take
+// the legacy matcher path unchanged.
+
+type ThemeContext = {
+  theme: Theme;
+  entrySubScene: SubScene;
+  character: Character | null;
+};
+
+function resolveThemeContext(ingredients: WorldIngredients): ThemeContext | null {
+  const themeId = ingredients.theme_id;
+  const entryId = ingredients.entry_sub_scene_id;
+  if (!themeId || !entryId) return null;
+  const theme = THEMES_BY_ID[themeId];
+  if (!theme) return null;
+  const entrySubScene = SUB_SCENES_BY_ID[entryId];
+  if (!entrySubScene || entrySubScene.theme !== themeId) return null;
+  const character = ingredients.character_id
+    ? CHARACTERS_BY_ID[ingredients.character_id] ?? null
+    : null;
+  return { theme, entrySubScene, character };
+}
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -145,9 +179,14 @@ export async function generateWorld(
   ingredients: WorldIngredients,
   level: number = 1
 ): Promise<GeneratedWorld> {
-  const match = matchSetting(ingredients.setting);
-  const requireInlineSvg = !match.hasGoodMatch;
-  const buildPrompt = () => buildStoryPrompt(ingredients, match.ranked, requireInlineSvg, level);
+  const themeContext = resolveThemeContext(ingredients);
+  // Theme-driven worlds use the library catalog instead of the matcher.
+  // Legacy worlds (no theme_id in ingredients) keep the B-010 matcher path.
+  const match = themeContext ? null : matchSetting(ingredients.setting);
+  const requireInlineSvg = themeContext ? false : !(match?.hasGoodMatch ?? false);
+  const rankedBackgrounds = match?.ranked ?? [];
+  const buildPrompt = () =>
+    buildStoryPrompt(ingredients, rankedBackgrounds, requireInlineSvg, level, themeContext);
   // Level 2+ trees are larger (10-12 scenes, 5 choices each); give Claude
   // more room. Keep level 1 at the existing 6144 budget.
   const maxTokens = level >= 2 ? 9216 : 6144;
@@ -254,7 +293,8 @@ function buildStoryPrompt(
   i: WorldIngredients,
   rankedBackgrounds: RankedBackground[],
   requireInlineSvg: boolean,
-  level: number = 1
+  level: number = 1,
+  themeContext: ThemeContext | null = null
 ): string {
   const isDeep = level >= 2;
   const heroAssetId = i.character_asset_id && isValidCharacterId(i.character_asset_id)
@@ -274,9 +314,26 @@ function buildStoryPrompt(
         .join(", ")
     : "(no library match — use inline_svg fallback)";
 
-  const backgroundInstructions = requireInlineSvg
+  // B-011: theme-driven backgrounds replace the matcher path entirely. The
+  // prompt enumerates the picked theme's 15 sub-scenes with adjacency edges,
+  // locks scene 1 to the entry sub-scene, and tells Claude scenes 2-4 must
+  // follow connects_to from the previous scene's library entry.
+  const themeBackgroundInstructions = themeContext
+    ? buildThemeLibraryBlock(themeContext)
+    : null;
+
+  const backgroundInstructions = themeBackgroundInstructions
+    ? themeBackgroundInstructions
+    : requireInlineSvg
     ? `BACKGROUND FALLBACK MODE. The kid's setting did not match any background in the library well enough. For EACH scene, you MUST set "inline_svg" to a small, hand-drawn-feeling SVG that fits the kid's setting input. The SVG must be a complete <svg> element with viewBox="0 0 1600 900", preserveAspectRatio="xMidYMid slice", soft watercolor-style colors, no text. Keep each SVG under 2000 characters. You may still set "background_id" to any valid library id as a graceful fallback for older clients, but the inline_svg is what the kid will see.`
     : `BACKGROUND PICKING MODE. The kid's setting matched the library well. For EACH scene, choose a "background_id" from the ranked list above (top match first, drift to lower-ranked options for variety across scenes if needed). Do NOT set "inline_svg". Background ids outside the ranked list are allowed only if a scene specifically calls for it (e.g. an indoor library scene inside an outdoor adventure), but prefer the ranked list.`;
+
+  // Hero voice: in theme-driven worlds, the catalog character.voice is
+  // authoritative and is overwritten server-side after parsing. Claude can
+  // still emit hero_voice; we ignore it. Keep the prompt instruction soft.
+  const heroVoiceInstruction = themeContext?.character
+    ? `Provide a top-level "hero_voice" field set to "${themeContext.character.voice}" — this is locked by the catalog and the server will overwrite anything else.`
+    : `Provide a top-level "hero_voice" string, either "Fena" or "Ryan". Pick "Fena" for girl-coded characters (hero girl, princess, fairy, mermaid, witch). Pick "Ryan" for boy-coded characters (hero boy, knight, wizard, pirate, ninja). For animals, robots, aliens, dragons, and any neutral character, pick whichever fits the character's vibe; default to "Ryan" if truly ambiguous.`;
 
   return `You are the Oracle in a creative game called Realm Shapers. A young player (around age 11) gives you four ingredients. You craft a longer point-and-click adventure for them where their choices matter.
 
@@ -290,8 +347,7 @@ HERO LOCKED.
 ${heroAssetLine}
 ${heroNameLine}
 
-BACKGROUNDS RANKED FOR THIS SETTING (top match first): ${rankedLine}
-
+${themeContext ? "" : `BACKGROUNDS RANKED FOR THIS SETTING (top match first): ${rankedLine}\n`}
 ${backgroundInstructions}
 
 ${isDeep ? `THIS IS A "GO DEEPER" REGENERATION (level ${level}). The kid finished an earlier version of this realm and asked for a bigger, harder one. Make it richer than a normal realm. Same world, deeper.` : ""}
@@ -326,7 +382,7 @@ CONSEQUENCES (this is new). The kid's earlier actions ripple forward. You make t
 
 You must reference assets ONLY from the curated library below.
 
-ALLOWED background_id values: ${BACKGROUND_IDS.join(", ")}
+${themeContext ? "" : `ALLOWED background_id values: ${BACKGROUND_IDS.join(", ")}\n`}
 
 ALLOWED default_character_id values: ${CHARACTER_IDS.join(", ")}
 
@@ -334,7 +390,7 @@ ALLOWED prop ids (for default_props, pickups, prop_overrides arrays): ${PROP_IDS
 
 CLICKABLE HERO. Provide a top-level "hero_lines" array of 3 to 5 entries. Each entry is { "kind": "thought" | "joke", "text": "..." }. The kid taps their hero in any scene to hear one. Mix tones: some "thought" (in-character musing tied to the realm) and some "joke" (kid-friendly, age 11). Make at least one line reference the kid's setting or character specifically ("I never thought I would meet a real ${i.character}").
 
-Provide a top-level "hero_voice" string, either "Fena" or "Ryan". Pick "Fena" for girl-coded characters (hero girl, princess, fairy, mermaid, witch). Pick "Ryan" for boy-coded characters (hero boy, knight, wizard, pirate, ninja). For animals, robots, aliens, dragons, and any neutral character, pick whichever fits the character's vibe; default to "Ryan" if truly ambiguous.
+${heroVoiceInstruction}
 
 You must also write a "secret_ending" scene that is hidden from the normal choices. This becomes the player's true ending if they explore everything (visit all scenes or collect all pickups). Same shape as a normal ending scene (no choices). The secret ending is independent of the "endings" list above (which controls regular ending divergence by flag state).
 
@@ -426,7 +482,49 @@ Hard rules:
 - The secret_ending field is REQUIRED. Its id MUST be unique and MUST NOT match any of the main scene ids. Its choices array MUST be empty.
 - Each side quest scene MUST be entered from at least one choice in a main path scene; that choice's interactable_kind should typically be "sparkle".
 - ambient_audio_prompt is for ElevenLabs Sound Effects, ambient only (waves, wind, rustling leaves, distant chimes), NEVER music or speech.
-- Avoid violence, romance, brand names, scary content. The player is around 11.`;
+- Avoid violence, romance, brand names, scary content. The player is around 11.${themeContext ? buildThemeHardRules(themeContext) : ""}`;
+}
+
+// B-011 scope 6: theme library block. Replaces the legacy ranked-background +
+// inline-svg fallback section when ingredients.theme_id is set. Lists the
+// picked theme's 15 sub-scenes with their connects_to edges and entry/ending
+// flags so Claude can build a story tree that walks real geography.
+function buildThemeLibraryBlock(ctx: ThemeContext): string {
+  const lines = ctx.theme.sub_scenes.map((s) => {
+    const flags: string[] = [];
+    if (s.can_be_entry) flags.push("Entry: yes");
+    else flags.push("Entry: no");
+    if (s.can_be_ending) flags.push("Ending: yes");
+    else flags.push("Ending: no");
+    const adj = s.connects_to.length ? s.connects_to.join(", ") : "(none)";
+    return `- ${s.id} (${s.label}): ${s.description}. Connects to: ${adj}. ${flags.join(". ")}.`;
+  });
+  return `THEME-DRIVEN BACKGROUND MODE. Your story takes place in the ${ctx.theme.label} world. Here are the available sub-scenes:
+${lines.join("\n")}
+
+ENTRY (LOCKED). Scene 1 MUST set "background_id" to "${ctx.entrySubScene.id}" exactly. The kid picked this starting place.
+
+ADJACENCY RULES (CRITICAL).
+- Each scene's "background_id" MUST be one of the sub-scene ids above (no other ids allowed in this realm).
+- For scenes at array indices 2, 3, and 4 (i.e. the 3rd, 4th, and 5th scenes in the "scenes" array): the "background_id" MUST appear in the previous scene's "connects_to" list. This makes the first half of the realm feel like real navigation.
+- For scenes at index 5 and beyond: any sub-scene id from this theme is allowed. You can bridge narratively ("a hidden door appears...") to keep the story flowing.
+- Ending scenes (choices: []) MUST use a sub-scene where "Ending: yes" above. The ending choice does NOT need to satisfy adjacency.
+
+DO NOT set "inline_svg" on any scene; the catalog backgrounds cover this realm.`;
+}
+
+function buildThemeHardRules(ctx: ThemeContext): string {
+  const allowed = ctx.theme.sub_scenes.map((s) => s.id).join(", ");
+  const endings = ctx.theme.sub_scenes
+    .filter((s) => s.can_be_ending)
+    .map((s) => s.id)
+    .join(", ");
+  return `
+- THEME LOCKED to "${ctx.theme.id}" (${ctx.theme.label}). Every scene's "background_id" MUST be one of: ${allowed}.
+- Scene 1 (the starting scene at index 0) MUST set "background_id" to exactly "${ctx.entrySubScene.id}".
+- Scenes at indices 2, 3, 4: "background_id" MUST appear in the previous scene's "connects_to" array (see catalog above).
+- Ending scenes (choices: []) MUST use a sub-scene whose "Ending: yes". Allowed endings for this theme: ${endings}.
+- Do NOT set "inline_svg" on any scene in this realm.`;
 }
 
 function buildIdeasPrompt(slot: IngredientSlot, current: WorldIngredients): string {
@@ -644,7 +742,14 @@ function parseStoryResponse(
   }
 
   const hero_lines = parseHeroLines(obj.hero_lines);
-  const hero_voice = parseHeroVoice(obj.hero_voice);
+  // B-011: theme-driven worlds resolve hero_voice from the catalog character
+  // server-side, overriding whatever Claude returned. Legacy worlds fall
+  // back to Claude's pick.
+  let hero_voice = parseHeroVoice(obj.hero_voice);
+  if (ingredients?.character_id) {
+    const catalogChar = CHARACTERS_BY_ID[ingredients.character_id];
+    if (catalogChar) hero_voice = catalogChar.voice;
+  }
 
   return {
     title,

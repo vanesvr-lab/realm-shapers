@@ -52,6 +52,7 @@ export function StoryPlayer({
   worldId,
   story,
   flags,
+  heroCharacterId,
   onSetFlag,
   onExit,
   onComplete,
@@ -60,6 +61,11 @@ export function StoryPlayer({
   worldId: string;
   story: StoryTree;
   flags: FlagState;
+  // B-010 scope 3: optional override (typically from the SceneEditor's swap)
+  // takes precedence over story.default_character_id. The default is set by
+  // the LandingForm picker (B-010 scope 2), which fixes Kellen's "purple
+  // dragon → default girl" bug at the source.
+  heroCharacterId?: string;
   onSetFlag: (id: string, value: boolean) => void;
   onExit: () => void;
   onComplete?: (payload: CompletionPayload) => void;
@@ -93,8 +99,16 @@ export function StoryPlayer({
   const isChoiceScene = scene.is_choice_scene === true;
   const isEnding = !isChoiceScene && scene.choices.length === 0;
   const isSideQuestScene = scene.is_side_quest === true;
-  const charUrl = assetUrlById(story.default_character_id);
-  const charMeta = ASSETS_BY_ID[story.default_character_id];
+  const renderedHeroId = heroCharacterId && ASSETS_BY_ID[heroCharacterId]
+    ? heroCharacterId
+    : story.default_character_id;
+  const charUrl = assetUrlById(renderedHeroId);
+  const charMeta = ASSETS_BY_ID[renderedHeroId];
+  if (typeof window !== "undefined" && !charMeta) {
+    console.warn(
+      `StoryPlayer: hero asset id "${renderedHeroId}" not found in library; nothing will render`
+    );
+  }
   const bgUrl = assetUrlById(scene.background_id);
   const resolved = useMemo(() => resolveScene(scene, flags), [scene, flags]);
 
@@ -254,7 +268,7 @@ export function StoryPlayer({
       onEvent({
         kind: "world_completed",
         world_id: worldId,
-        character_id: story.default_character_id,
+        character_id: renderedHeroId,
         secret_discovered: finalSecret,
       });
       // Only count regular endings toward the per-world ending log. The
@@ -282,7 +296,7 @@ export function StoryPlayer({
     sceneById,
     story.secret_ending,
     story.endings,
-    story.default_character_id,
+    renderedHeroId,
     flags,
     visited,
     inventory,

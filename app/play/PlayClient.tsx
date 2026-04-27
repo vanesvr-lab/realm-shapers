@@ -266,6 +266,7 @@ export function PlayClient({
           worldId={worldId}
           story={story}
           flags={flags}
+          heroCharacterId={editorSnapshot.characterId}
           onSetFlag={handleSetFlag}
           onExit={handleExitPlay}
           onComplete={handlePlayerComplete}

@@ -11,6 +11,7 @@
 // keywords) and the goal (return ranked list, not single best) differ.
 
 import { BACKGROUND_CATALOG, type BackgroundEntry } from "@/lib/backgrounds-catalog";
+import type { SubScene } from "@/lib/themes-catalog";
 
 export const MATCH_MIN_SIMILARITY = 0.5;
 
@@ -98,6 +99,93 @@ export function matchSetting(rawText: string, topN: number = 5): SettingMatchRes
     topScore,
     hasGoodMatch: topScore >= MATCH_MIN_SIMILARITY,
   };
+}
+
+// B-011 step 2 helper. The kid picks a sub-scene from the grid OR types a
+// description. If they type, narrow to the best-matching sub-scene id within
+// the picked theme. Reuses the same tokenize + Levenshtein machinery as the
+// background matcher but scores sub-scenes against label + description.
+// Returns null when no candidate scores above threshold; the form falls back
+// to "first entry-candidate sub-scene" in that case.
+export function matchSubScene(
+  rawText: string,
+  subScenes: SubScene[],
+  minSimilarity: number = 0.45
+): SubScene | null {
+  const tokens = tokenize(rawText);
+  if (tokens.length === 0 || subScenes.length === 0) return null;
+
+  let bestScore = 0;
+  let best: SubScene | null = null;
+  for (const sub of subScenes) {
+    const score = scoreSubScene(tokens, sub);
+    if (score > bestScore) {
+      bestScore = score;
+      best = sub;
+    }
+  }
+  if (bestScore < minSimilarity) return null;
+  return best;
+}
+
+function scoreSubScene(tokens: string[], sub: SubScene): number {
+  const idTokens = new Set(sub.id.split(/[_\s]+/).filter(Boolean));
+  const labelTokens = new Set(tokenize(sub.label));
+  const descriptionTokens = new Set(tokenize(sub.description));
+  const bag = new Set<string>([
+    ...Array.from(idTokens),
+    ...Array.from(labelTokens),
+    ...Array.from(descriptionTokens),
+  ]);
+
+  // Direct phrase match boost: if the typed text contains the label words.
+  const joined = tokens.join(" ");
+  const labelLower = sub.label.toLowerCase();
+  if (joined === labelLower || joined.includes(labelLower) || labelLower.includes(joined)) {
+    return 1;
+  }
+
+  let overlap = 0;
+  let strongest = 0;
+  let labelHit = false;
+
+  for (const t of tokens) {
+    if (idTokens.has(t) || labelTokens.has(t)) {
+      overlap += 1.4;
+      strongest = Math.max(strongest, 1);
+      labelHit = true;
+      continue;
+    }
+    if (bag.has(t)) {
+      overlap += 1;
+      strongest = Math.max(strongest, 1);
+      continue;
+    }
+    let bestDist = Infinity;
+    let bestLen = 0;
+    let bestStrong = false;
+    for (const p of Array.from(bag)) {
+      const d = levenshtein(t, p);
+      if (d < bestDist) {
+        bestDist = d;
+        bestLen = Math.max(t.length, p.length);
+        bestStrong = idTokens.has(p) || labelTokens.has(p);
+      }
+    }
+    if (bestLen > 0) {
+      const sim = 1 - bestDist / bestLen;
+      if (sim >= 0.78) {
+        overlap += sim * (bestStrong ? 1.3 : 1);
+        strongest = Math.max(strongest, sim);
+        if (bestStrong && sim >= 0.85) labelHit = true;
+      }
+    }
+  }
+
+  if (overlap === 0) return 0;
+  const overlapRatio = Math.min(1, overlap / Math.max(1, tokens.length));
+  const base = 0.55 * strongest + 0.45 * overlapRatio;
+  return Math.min(1, base + (labelHit ? 0.1 : 0));
 }
 
 function tokenize(raw: string): string[] {

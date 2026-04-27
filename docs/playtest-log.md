@@ -42,7 +42,8 @@ Not asked. Session wrapped before this question because Kellen got stuck and the
 - **Wants the hero to be interactive.** "Can we have the character talk and be more interactive." Specifically: tap the hero, hear them say things. When asked what kind of things: "this is what i am thinking and jokes." Same surface as the Oracle but coming from the chosen character.
 
 ### Vanessa adds (after watching Kellen)
-- **Min ~6 scenes before ending.** Sometimes a kid finishes a realm in 2-3 clicks and it doesn't feel earned, just lucky.
+- **Min 4 scenes before ending** (revised from initial "6" during decision review). Sometimes a kid finishes a realm in 2-3 clicks and it doesn't feel earned, just lucky. Goal: if the kid finishes in 4, it's because they made smart choices guided by tooltips, not random.
+- **Tree structure rule:** scenes 1-2 explore/collect, scenes 3-4+ progression toward the goal. No ending paths in the first 2 scenes.
 - **More options per choice.** Right now it's 2. Bump to 4-5 so it feels like a real challenge.
 - **Tooltips on options.** Hover/tap shows a hint. Helps kids pick thoughtful options ("better prompt, better place").
 - **Editor placements should carry into play.** What the kid drags into scene 1 in the pre-play SceneEditor doesn't actually show up during gameplay. It should.

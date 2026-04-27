@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { StoryTree } from "@/lib/claude";
 import { ASSETS_BY_ID } from "@/lib/asset-library";
 import { AssetPalette } from "@/components/AssetPalette";
@@ -11,7 +11,41 @@ export type EditorSnapshot = {
   propsPlaced: number;
   characterId: string;
   backgroundId: string;
+  // B-010 scope 6: ids of every prop the kid placed in scene 1. Carried
+  // through to StoryPlayer so the kid sees their placements during play
+  // (Vanessa's note: today the editor swap is silently lost on Play).
+  propIds: string[];
 };
+
+function editorSnapshotKey(worldId: string): string {
+  return `realm-shapers:editor-props:${worldId}`;
+}
+
+type PersistedSnapshot = {
+  characterId: string;
+  backgroundId: string;
+  propIds: string[];
+};
+
+function loadPersistedSnapshot(worldId: string): PersistedSnapshot | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(editorSnapshotKey(worldId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return null;
+    const obj = parsed as Record<string, unknown>;
+    const characterId = typeof obj.characterId === "string" ? obj.characterId : "";
+    const backgroundId = typeof obj.backgroundId === "string" ? obj.backgroundId : "";
+    const propIds = Array.isArray(obj.propIds)
+      ? obj.propIds.filter((p): p is string => typeof p === "string")
+      : [];
+    if (!characterId || !backgroundId) return null;
+    return { characterId, backgroundId, propIds };
+  } catch {
+    return null;
+  }
+}
 
 const CANVAS_WIDTH = 800;
 const CANVAS_HEIGHT = 450;
@@ -44,11 +78,18 @@ export function SceneEditor({
 }) {
   const startingScene = story.scenes.find((s) => s.id === story.starting_scene_id) ?? story.scenes[0];
 
-  const [characterId, setCharacterId] = useState<string>(story.default_character_id);
-  const [backgroundId, setBackgroundId] = useState<string>(startingScene.background_id);
+  // Restore the kid's prior edits for this world if they navigated away and
+  // came back. Falls through to defaults from the StoryTree on a fresh load.
+  const persisted = loadPersistedSnapshot(worldId);
+  const initialCharacter = persisted?.characterId ?? story.default_character_id;
+  const initialBackground = persisted?.backgroundId ?? startingScene.background_id;
+  const initialPropIds = persisted?.propIds ?? startingScene.default_props;
+
+  const [characterId, setCharacterId] = useState<string>(initialCharacter);
+  const [backgroundId, setBackgroundId] = useState<string>(initialBackground);
   const [characterPos, setCharacterPos] = useState(DEFAULT_CHAR_POS);
   const [props, setProps] = useState<PlacedProp[]>(() =>
-    startingScene.default_props.map((id, i) => ({
+    initialPropIds.map((id, i) => ({
       uid: makeUid("prop"),
       asset_id: id,
       x: 80 + i * 220,
@@ -109,13 +150,29 @@ export function SceneEditor({
     setBubbles((arr) => arr.map((b) => (b.uid === uid ? { ...b, z: minZ - 1 } : b)));
   }
 
+  const propIdsKey = props.map((p) => p.asset_id).join("|");
+  const onSnapshotChangeRef = useRef(onSnapshotChange);
+  onSnapshotChangeRef.current = onSnapshotChange;
+
   useEffect(() => {
-    onSnapshotChange?.({
-      propsPlaced: props.length,
+    const propIds = propIdsKey ? propIdsKey.split("|") : [];
+    onSnapshotChangeRef.current?.({
+      propsPlaced: propIds.length,
       characterId,
       backgroundId,
+      propIds,
     });
-  }, [props.length, characterId, backgroundId, onSnapshotChange]);
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem(
+          editorSnapshotKey(worldId),
+          JSON.stringify({ characterId, backgroundId, propIds }),
+        );
+      } catch {
+        // ignore quota / private mode
+      }
+    }
+  }, [propIdsKey, characterId, backgroundId, worldId]);
 
   async function reNarrate() {
     setRewriteState({ loading: true, remaining: rewriteState.remaining, error: null });
@@ -234,7 +291,14 @@ export function SceneEditor({
 
           <button
             type="button"
-            onClick={() => onPlay({ propsPlaced: props.length, characterId, backgroundId })}
+            onClick={() =>
+              onPlay({
+                propsPlaced: props.length,
+                characterId,
+                backgroundId,
+                propIds: props.map((p) => p.asset_id),
+              })
+            }
             className="mt-4 w-full px-5 py-4 rounded-xl bg-emerald-600 text-white font-bold text-lg shadow hover:bg-emerald-700"
           >
             ▶ Play your story

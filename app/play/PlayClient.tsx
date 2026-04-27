@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import type { StoryScene, StoryTree, WorldIngredients } from "@/lib/claude";
 import type { AchievementDef } from "@/lib/achievements-types";
 import type { RarityInputs } from "@/lib/rarity";
-import { SceneEditor } from "@/components/SceneEditor";
+import { SceneEditor, type EditorSnapshot } from "@/components/SceneEditor";
 import { StoryPlayer, type GameplayEvent } from "@/components/StoryPlayer";
 import { SaveYourWorldsModal } from "@/components/SaveYourWorldsModal";
 import { AchievementToast } from "@/components/AchievementToast";
@@ -24,12 +24,6 @@ const RealmCard = dynamic(
   () => import("@/components/RealmCard").then((m) => m.RealmCard),
   { ssr: false }
 );
-
-type EditorSnapshot = {
-  propsPlaced: number;
-  characterId: string;
-  backgroundId: string;
-};
 
 export function PlayClient({
   worldId,
@@ -57,6 +51,7 @@ export function PlayClient({
     propsPlaced: story.scenes[0]?.default_props.length ?? 0,
     characterId: story.default_character_id,
     backgroundId: story.scenes[0]?.background_id ?? "forest",
+    propIds: story.scenes[0]?.default_props ?? [],
   });
   const [completion, setCompletion] = useState<{
     endingScene: StoryScene;
@@ -267,6 +262,7 @@ export function PlayClient({
           story={story}
           flags={flags}
           heroCharacterId={editorSnapshot.characterId}
+          editorScene1PropIds={editorSnapshot.propIds}
           onSetFlag={handleSetFlag}
           onExit={handleExitPlay}
           onQuitRealm={() => router.push("/")}

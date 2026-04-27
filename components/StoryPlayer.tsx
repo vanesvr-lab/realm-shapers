@@ -57,6 +57,7 @@ export function StoryPlayer({
   story,
   flags,
   heroCharacterId,
+  editorScene1PropIds,
   onSetFlag,
   onExit,
   onQuitRealm,
@@ -71,6 +72,10 @@ export function StoryPlayer({
   // the LandingForm picker (B-010 scope 2), which fixes Kellen's "purple
   // dragon → default girl" bug at the source.
   heroCharacterId?: string;
+  // B-010 scope 6: prop ids the kid placed in scene 1 via SceneEditor.
+  // Merged into the scene's resolved props so the kid's deliberate
+  // arrangement actually shows up during play. Scene 1 only.
+  editorScene1PropIds?: string[];
   onSetFlag: (id: string, value: boolean) => void;
   onExit: () => void;
   // B-010 scope 4: when present, the in-game corner button surfaces a
@@ -121,6 +126,32 @@ export function StoryPlayer({
   }
   const bgUrl = assetUrlById(scene.background_id);
   const resolved = useMemo(() => resolveScene(scene, flags), [scene, flags]);
+  // B-010 scope 6: editor placements only affect the starting scene. Editor
+  // adds win because the kid placed them deliberately. Cap to the same 3-prop
+  // limit the original positions array supports.
+  const isStartingScene = scene.id === story.starting_scene_id;
+  const renderedProps = useMemo(() => {
+    if (!isStartingScene || !editorScene1PropIds || editorScene1PropIds.length === 0) {
+      return resolved.props;
+    }
+    const merged: string[] = [];
+    const seen = new Set<string>();
+    for (const id of editorScene1PropIds) {
+      if (!ASSETS_BY_ID[id] || seen.has(id)) continue;
+      seen.add(id);
+      merged.push(id);
+      if (merged.length >= 3) break;
+    }
+    if (merged.length < 3) {
+      for (const id of resolved.props) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        merged.push(id);
+        if (merged.length >= 3) break;
+      }
+    }
+    return merged;
+  }, [isStartingScene, editorScene1PropIds, resolved.props]);
 
   const totalPickups = useMemo(() => {
     const all = new Set<string>();
@@ -495,7 +526,7 @@ export function StoryPlayer({
               </motion.div>
             )}
 
-            {resolved.props.map((propId, i) => {
+            {renderedProps.map((propId, i) => {
               const url = assetUrlById(propId);
               const meta = ASSETS_BY_ID[propId];
               if (!url || !meta) return null;

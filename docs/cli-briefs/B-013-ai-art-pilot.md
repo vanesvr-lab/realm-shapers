@@ -14,7 +14,7 @@ Generate ~8 demo-quality images via Replicate Flux 1.1 Pro plus 1 short entry vi
 - **Style prompt suffix shared across all 8** for visual consistency: "painterly fantasy storybook art, soft lighting, vibrant kid-friendly colors, no text or watermarks." Same model, same seed family if Replicate exposes one.
 - **No animations on the raster background in pilot.** Skip the SVG-overlay-for-animation complexity for now. Hero bob, pickup glow, scene fade, interactable hover stay (those are React/CSS, layer-independent). Water ripple and banner sway from B-012 scope 4 are DEFERRED — if AI art is gorgeous enough, they may not even be needed. Re-evaluate after Vanessa reviews.
 - **Pickups (6):** rusty_key, torch, climbing_rope, dragons_lullaby, ancient_tome, dragons_egg (the 5 gates from B-012 + a goal item).
-- **One entry video for Drawbridge** generated via Luma Dream Machine on Replicate (image-to-video). Starting frame = the AI-generated drawbridge.webp. Motion prompt: "the drawbridge slowly lowers, water ripples in the moat, banners gently flutter on either side, soft warm sunset light, subtle camera push-in." Duration: 5 seconds. Saved as `public/backgrounds/castle/drawbridge_entry.webm` (or .mp4 if Luma returns mp4 — keep whatever format Replicate gives, the renderer reads file extension). Cost: ~$0.32. Plays muted, plays once on scene 1 first-entry, fades into the static drawbridge.webp after the last frame. Skippable on tap.
+- **One entry video for Drawbridge** generated via the best current image-to-video model on Replicate. CLI picks the model at run time — recommended candidates in order of preference: (1) `kwaivgi/kling-v1.6-pro` or its current successor, (2) `lightricks/ltx-video`, (3) `stability-ai/stable-video-diffusion-img2vid-xt` as the proven-reliable fallback. CLI verifies the chosen model exists and accepts an image+prompt input before committing to it. Starting frame = the AI-generated drawbridge.webp. Motion prompt: "the drawbridge slowly lowers, water ripples in the moat, banners gently flutter on either side, soft warm sunset light, subtle camera push-in." Target duration: 5 seconds. Saved as `public/backgrounds/castle/drawbridge_entry.{webm|mp4}` — preserve whatever extension Replicate returns; the catalog and renderer read the actual extension. Cost: ~$0.10-0.50 depending on the model. Plays muted, plays once on scene 1 first-entry, fades into the static drawbridge.webp after the last frame. Skippable on tap.
 - **Video scope is intentionally minimal: just one clip.** Other Castle sub-scenes get NO video at all. We're validating two things in this pilot: (a) does AI raster look great? and (b) does adding a 5s entry video to a single scene feel "wow" or feel like overkill? Both decisions inform B-014 scope.
 - **No regression on other themes/scenes.** Only Drawbridge swaps to AI-generated raster + entry video. Other 14 Castle sub-scenes keep their B-012 SVG regen art (when it ships). Other 5 themes untouched.
 
@@ -33,7 +33,8 @@ Vanessa pastes her token directly in VS Code (per memory: don't terminal-heredoc
 - Polls Replicate's prediction endpoint until status === "succeeded" (max ~60s).
 - Returns the image URL + raw bytes for local saving.
 - Errors logged + re-thrown; no silent fallback.
-- Second helper: `generateVideoFromImage({ imageUrlOrBuffer, motionPrompt, duration = 5 }): Promise<{ url: string; bytes: Buffer }>` — wraps the Luma Dream Machine model on Replicate (image-to-video). Polls for ~120s max (videos take longer than images). Returns the video bytes for local saving. Same error handling.
+- Second helper: `generateVideoFromImage({ imageUrlOrBuffer, motionPrompt, duration = 5, modelSlug }): Promise<{ url: string; bytes: Buffer; extension: "webm" | "mp4" }>` — wraps a Replicate image-to-video model (slug passed in; CLI picks per the candidate list in Decisions Locked). Polls for ~180s max (videos take longer than images). Returns the video bytes + its actual extension for local saving with the right filename.
+- The image2video helper should detect the response format and return the actual extension, not assume.
 
 ### 2. One-time generation script
 
@@ -43,7 +44,7 @@ Uses `tsx --env-file=.env.local`. Generates the 8 pilot images sequentially:
 
 1. Drawbridge — prompt: *"A medieval castle drawbridge at golden hour, wooden planks crossing a moat, stone archway with iron chains, distant castle wall, soft warm sunlight, painterly fantasy storybook art, soft lighting, vibrant kid-friendly colors, no text or watermarks."* — aspect 16:9, save as `public/backgrounds/castle/drawbridge.webp`.
 
-2. Wizard — prompt: *"A young wizard with a kind face, wearing a blue starry robe and pointed hat, holding a wooden staff, full-body portrait, transparent or pale background, painterly fantasy storybook art, soft lighting, vibrant kid-friendly colors, no text or watermarks."* — aspect 1:1, save as `public/characters/wizard.webp`.
+2. Wizard — prompt: *"A young wizard with a kind face, wearing a blue starry robe and pointed hat, holding a wooden staff, full-body portrait, soft pale neutral background (light grey or cream), painterly fantasy storybook art, soft lighting, vibrant kid-friendly colors, no text or watermarks."* — aspect 1:1, save as `public/characters/wizard.webp`. Note: Flux doesn't reliably output transparent backgrounds, so we generate with a pale solid background. Acceptable for pilot; if the wizard reads as a "sticker" on top of scene backgrounds during smoke testing, B-014 follow-up will add a Replicate background-removal pass (e.g., `851-labs/background-remover`).
 
 3-8. Pickup icons (1:1 aspect, simple iconic shapes):
 - rusty_key: *"a small ornate rusty iron key with a heart-shaped handle, isolated on a clean pale background, painterly fantasy storybook art, vibrant colors, no text"*
@@ -55,9 +56,9 @@ Uses `tsx --env-file=.env.local`. Generates the 8 pilot images sequentially:
 
 Save to `public/pickups/{id}.webp`.
 
-9. **Drawbridge entry video** — uses the just-generated drawbridge.webp as the starting image. Motion prompt: *"the drawbridge slowly lowers, water ripples in the moat, banners gently flutter on either side, soft warm sunset light, subtle camera push-in."* Duration: 5 seconds. Save the bytes returned by Replicate as `public/backgrounds/castle/drawbridge_entry.webm` (or `.mp4` if Luma returns mp4 — preserve whatever extension Replicate gives, just match it in the catalog).
+9. **Drawbridge entry video** — uses the just-generated drawbridge.webp as the starting image. Motion prompt: *"the drawbridge slowly lowers, water ripples in the moat, banners gently flutter on either side, soft warm sunset light, subtle camera push-in."* Target duration: 5 seconds. CLI picks the image-to-video model from the Decisions Locked candidate list, verifies it exists on Replicate, and runs it. Save the bytes returned by Replicate as `public/backgrounds/castle/drawbridge_entry.{actual_extension}` — the script reads the extension from the response (webm or mp4) and writes the file accordingly. Log the model slug used + final filename + bytes size.
 
-Script logs each generation with cost estimate. Total expected: ~$0.64 (8 images at ~$0.32 + 1 video at ~$0.32).
+Script logs each generation with cost estimate. Total expected: ~$0.40-0.80 (8 images at ~$0.32 + 1 video at $0.10-0.50 depending on model). Total under $1.
 
 ### 3. Catalog updates
 
@@ -152,20 +153,21 @@ Read CLAUDE.md and the last 3 CHANGES.md entries.
 
 Then read docs/cli-briefs/B-013-ai-art-pilot.md fully.
 
-This is a NARROW pilot. Total scope: ~8 image generations + catalog file_path swaps + a one-time generation script. Aim for under an hour.
+This is a NARROW pilot. Total scope: 8 image generations + 1 entry video (Drawbridge) + catalog updates + sessionStorage-gated video playback for scene 1. Aim for under an hour. Total Replicate cost: under $1.
 
 Decisions are locked. Don't expand scope. Don't touch other themes or scenes.
 
 Execute in this order. Each numbered step ends in a commit.
 
 1. Add lib/image-gen.ts (Replicate Flux 1.1 Pro client + Luma Dream Machine image-to-video helper). Add REPLICATE_API_TOKEN to .env.local — STOP and ask Vanessa to paste her token via VS Code (per project memory feedback_secrets_in_vscode.md). Don't proceed until the token is in place.
-2. Add scripts/generate-pilot-art.ts. Generates 8 .webp images then 1 entry video (.webm or .mp4 — whatever Luma returns). Run it once via `npx tsx --env-file=.env.local scripts/generate-pilot-art.ts`. Commit all generated files to public/. Total expected cost ~$0.64.
+2. Add scripts/generate-pilot-art.ts. Generates 8 .webp images then 1 entry video (.webm or .mp4 — whichever the chosen image-to-video model returns). Before running, verify the chosen Replicate video model is reachable (curl the model page or Replicate's models endpoint). Run via `npx tsx --env-file=.env.local scripts/generate-pilot-art.ts`. Commit all generated files to public/. Total expected cost under $1.
 3. Rename current Drawbridge SVG and Wizard SVG to .bak (preserves rollback path). Update catalog file_paths to point at the new .webp files. Update pickup catalog icon_paths. Add `entry_video_path` to Castle drawbridge sub-scene.
 4. Verify renderer handles webp (check StoryPlayer, HeroAvatar, InventoryBar). If any place hardcodes .svg, generalize. Wire up entry-video playback per scope 4a in the brief: `<video>` element with autoplay/muted/playsInline, sessionStorage gate so it plays once per (world_id, scene_id), tap-to-skip, crossfade to static image on end.
-5. Run npx tsc --noEmit and npm run build clean. Push.
-6. Append a B-013 entry to CHANGES.md noting the pilot is awaiting Vanessa's go/no-go after browser inspection.
+5. Run npx tsc --noEmit and npm run build clean. Append a B-013 entry to CHANGES.md noting the pilot is awaiting Vanessa's go/no-go after browser inspection (include the chosen image-to-video model slug, total cost, and file sizes in the entry). Commit and push.
 
 Do NOT delete the old SVG placeholders (.bak files stay until Vanessa says ship). Do NOT generate any other images or videos. Do NOT generate ambient sound (that's B-012 scope 5). Do NOT add entry videos to any other scene — Drawbridge only.
+
+If the chosen video model fails or the result looks broken (rate-limit, content policy reject, garbage output), log the failure clearly in CHANGES.md and ship the rest of the pilot with NO video. Vanessa can review the still images alone and decide whether to retry video on a different model in B-013.5. Don't loop forever on video failures.
 
 When done, write a one-line note for Vanessa: "Pilot art pushed, deployed at https://realm-shapers.vercel.app. Pick a Castle realm starting at Drawbridge with a Wizard character to see all 8 images + the entry video in context. Approve or reject."
 

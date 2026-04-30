@@ -1,10 +1,10 @@
-# B-013: AI-Generated Art Pilot (Drawbridge + Wizard + 6 Pickups)
+# B-013: AI-Generated Art Pilot (Drawbridge + Wizard + 6 Pickups + Entry Video)
 
-> Validation pilot. Vanessa's call after the B-012 sourcing discussion: AI image generation almost certainly produces better art than placeholder SVGs at trivial cost. Before committing to ~100 images across all themes, validate on ONE polished example: 1 Drawbridge background, 1 Wizard character, 6 pickup icons. If the quality jump is real, B-014 scales to the full Castle theme. If quality disappoints, fall back to B-012's SVG regen approach.
+> Validation pilot. Vanessa's call after the B-012 sourcing discussion: AI image generation almost certainly produces better art than placeholder SVGs at trivial cost. Before committing to ~100 images across all themes, validate on ONE polished example: 1 Drawbridge background, 1 Wizard character, 6 pickup icons, plus 1 short entry video (drawbridge lowering on scene entry, image-to-video from the static Drawbridge). If the quality jump is real, B-014 scales to the full Castle theme. If quality disappoints, fall back to B-012's SVG regen approach.
 
 ## Goal
 
-Generate ~8 demo-quality images via Replicate Flux 1.1 Pro, swap them into the existing catalog, and ship. Total cost: under $1. Total CLI time: under an hour. Vanessa reviews the rendered Drawbridge in the browser and makes the go/no-go call on B-014.
+Generate ~8 demo-quality images via Replicate Flux 1.1 Pro plus 1 short entry video (image-to-video on Luma via Replicate), swap them into the existing catalog, and ship. Total cost: under $1. Total CLI time: under an hour. Vanessa reviews the rendered Drawbridge in the browser (with the entry video kicking off scene 1) and makes the go/no-go call on B-014.
 
 ## Decisions Locked
 
@@ -14,7 +14,9 @@ Generate ~8 demo-quality images via Replicate Flux 1.1 Pro, swap them into the e
 - **Style prompt suffix shared across all 8** for visual consistency: "painterly fantasy storybook art, soft lighting, vibrant kid-friendly colors, no text or watermarks." Same model, same seed family if Replicate exposes one.
 - **No animations on the raster background in pilot.** Skip the SVG-overlay-for-animation complexity for now. Hero bob, pickup glow, scene fade, interactable hover stay (those are React/CSS, layer-independent). Water ripple and banner sway from B-012 scope 4 are DEFERRED — if AI art is gorgeous enough, they may not even be needed. Re-evaluate after Vanessa reviews.
 - **Pickups (6):** rusty_key, torch, climbing_rope, dragons_lullaby, ancient_tome, dragons_egg (the 5 gates from B-012 + a goal item).
-- **No regression on other themes/scenes.** Only Drawbridge swaps to AI-generated raster. Other 14 Castle sub-scenes keep their B-012 SVG regen art (when it ships). Other 5 themes untouched.
+- **One entry video for Drawbridge** generated via Luma Dream Machine on Replicate (image-to-video). Starting frame = the AI-generated drawbridge.webp. Motion prompt: "the drawbridge slowly lowers, water ripples in the moat, banners gently flutter on either side, soft warm sunset light, subtle camera push-in." Duration: 5 seconds. Saved as `public/backgrounds/castle/drawbridge_entry.webm` (or .mp4 if Luma returns mp4 — keep whatever format Replicate gives, the renderer reads file extension). Cost: ~$0.32. Plays muted, plays once on scene 1 first-entry, fades into the static drawbridge.webp after the last frame. Skippable on tap.
+- **Video scope is intentionally minimal: just one clip.** Other Castle sub-scenes get NO video at all. We're validating two things in this pilot: (a) does AI raster look great? and (b) does adding a 5s entry video to a single scene feel "wow" or feel like overkill? Both decisions inform B-014 scope.
+- **No regression on other themes/scenes.** Only Drawbridge swaps to AI-generated raster + entry video. Other 14 Castle sub-scenes keep their B-012 SVG regen art (when it ships). Other 5 themes untouched.
 
 ## Architectural Decisions
 
@@ -31,6 +33,7 @@ Vanessa pastes her token directly in VS Code (per memory: don't terminal-heredoc
 - Polls Replicate's prediction endpoint until status === "succeeded" (max ~60s).
 - Returns the image URL + raw bytes for local saving.
 - Errors logged + re-thrown; no silent fallback.
+- Second helper: `generateVideoFromImage({ imageUrlOrBuffer, motionPrompt, duration = 5 }): Promise<{ url: string; bytes: Buffer }>` — wraps the Luma Dream Machine model on Replicate (image-to-video). Polls for ~120s max (videos take longer than images). Returns the video bytes for local saving. Same error handling.
 
 ### 2. One-time generation script
 
@@ -52,7 +55,9 @@ Uses `tsx --env-file=.env.local`. Generates the 8 pilot images sequentially:
 
 Save to `public/pickups/{id}.webp`.
 
-Script logs each generation with cost estimate. Total expected: ~$0.32.
+9. **Drawbridge entry video** — uses the just-generated drawbridge.webp as the starting image. Motion prompt: *"the drawbridge slowly lowers, water ripples in the moat, banners gently flutter on either side, soft warm sunset light, subtle camera push-in."* Duration: 5 seconds. Save the bytes returned by Replicate as `public/backgrounds/castle/drawbridge_entry.webm` (or `.mp4` if Luma returns mp4 — preserve whatever extension Replicate gives, just match it in the catalog).
+
+Script logs each generation with cost estimate. Total expected: ~$0.64 (8 images at ~$0.32 + 1 video at ~$0.32).
 
 ### 3. Catalog updates
 
@@ -77,6 +82,18 @@ If B-012 hasn't merged yet, this brief creates the pickups catalog. If B-012 alr
 
 `components/InventoryBar.tsx` / pickup icon renderer: same.
 
+### 4a. Entry video playback for Drawbridge
+
+`lib/themes-catalog.ts`: add an optional `entry_video_path?: string` field to `SubScene`. Castle's `drawbridge` sub-scene gets `entry_video_path: "/backgrounds/castle/drawbridge_entry.webm"` (or `.mp4` to match what was saved). Other sub-scenes leave it undefined.
+
+`components/StoryPlayer.tsx` (or wherever scene 1 first renders):
+- On first mount of a scene, if the scene's sub-scene has `entry_video_path`, render the video instead of the static image. Use a standard `<video>` element with `autoPlay muted playsInline preload="auto"`. The static image (`file_path`) is the video's `poster` attribute so the first frame is identical.
+- Track per-realm-session "have I played this entry video already?" in a React ref or sessionStorage key like `realm-shapers:entry-video-played:{world_id}:{scene_id}`. Replays during the same session do NOT replay the video.
+- When the video's `onEnded` fires, swap from `<video>` to `<img src={file_path} />`. Use a small CSS opacity crossfade (200ms) to avoid a visual jump.
+- Skippable on tap: if the kid taps anywhere on the scene during video playback, immediately swap to the static image (don't wait for it to finish). Same crossfade.
+- Mobile autoplay caveat: muted videos generally autoplay on mobile, but verify on iOS Safari. If autoplay is blocked, just render the static image and skip the video for that user (no error UI — graceful degradation).
+- The kid's interactables (paths, pickups) render ON TOP of the video. Tap-to-show tooltips work even during video playback (taps that hit interactables don't skip the video; taps on empty scene area DO skip it).
+
 ### 5. Old placeholders stay in repo
 
 Don't delete the old SVG placeholders. Keep them at:
@@ -95,13 +112,16 @@ Add a short note at the top of `lib/image-gen.ts`:
 
 After CLI runs the script + commits:
 
-1. **Files exist.** `public/backgrounds/castle/drawbridge.webp`, `public/characters/wizard.webp`, and `public/pickups/{rusty_key, torch, climbing_rope, dragons_lullaby, ancient_tome, dragons_egg}.webp` all present, each under ~1 MB.
-2. **Visual inspection.** Vanessa opens each file directly in the browser. Rates each as "demo-worthy" / "decent" / "reject."
-3. **In-game render.** Generate a Castle realm starting at Drawbridge. The rendered scene shows the new raster background, not an SVG placeholder. Wizard character (if picked) renders with the new portrait. Inventory shows the new pickup icons when collected.
-4. **Mobile.** Resize to 375px wide. Background scales without pixelation. Character + pickup icons stay sharp.
-5. **Network/perf.** First page-load network panel: webp images load fast (<1 sec each). No 404s on missing assets.
-6. **Old worlds.** Open a pre-B-013 world. Confirm it renders fine via the matcher fallback (other backgrounds, not these new ones).
-7. **Animations.** Hero bob still works. Pickup glow still works. Scene fade still works. Banner sway and water ripple are intentionally absent — note in CHANGES.md.
+1. **Files exist.** `public/backgrounds/castle/drawbridge.webp`, `public/backgrounds/castle/drawbridge_entry.webm` (or .mp4), `public/characters/wizard.webp`, and `public/pickups/{rusty_key, torch, climbing_rope, dragons_lullaby, ancient_tome, dragons_egg}.webp` all present. Images under ~1 MB; video under ~5 MB.
+2. **Visual inspection (still images).** Vanessa opens each .webp directly in the browser. Rates each as "demo-worthy" / "decent" / "reject."
+3. **Visual inspection (video).** Vanessa opens `drawbridge_entry.webm` directly in the browser. Plays smoothly, looks like the static image at the first and last frame, motion is plausible (drawbridge does lower, water ripples, banners flutter), no obvious AI artifacts. Rate "demo-worthy" / "decent" / "reject."
+4. **In-game render.** Generate a Castle realm starting at Drawbridge. The entry video plays once on scene 1 first-entry, then crossfades to the static drawbridge.webp. Wizard character (if picked) renders with the new portrait. Inventory shows the new pickup icons when collected.
+5. **Video skippable.** During the entry video, tap on empty scene area. Confirm video skips immediately and the static image appears.
+6. **Video plays once per session.** Navigate away from scene 1 (forward to scene 2), then come back. Confirm the entry video does NOT replay; static image renders directly. Refresh the browser → entry video plays again (sessionStorage cleared).
+7. **Mobile autoplay.** On a real iPhone (not Chrome devtools), open the deployed site, generate a Castle realm. Confirm the entry video autoplays muted. If it doesn't (iOS being iOS), confirm the static image renders gracefully and the kid still plays normally.
+8. **Network/perf.** First page-load network panel: webp images load fast (<1 sec each). Video preloads in background (<3 sec). No 404s.
+9. **Old worlds.** Open a pre-B-013 world. Confirm it renders fine via the matcher fallback (other backgrounds, not these new ones, no entry video).
+10. **Animations.** Hero bob still works. Pickup glow still works. Scene fade still works. Banner sway and water ripple as SVG `<animate>` are intentionally absent — the entry video covers that motion for the showcase scene.
 
 ## The decision criterion
 
@@ -138,16 +158,16 @@ Decisions are locked. Don't expand scope. Don't touch other themes or scenes.
 
 Execute in this order. Each numbered step ends in a commit.
 
-1. Add lib/image-gen.ts (Replicate Flux 1.1 Pro client). Add REPLICATE_API_TOKEN to .env.local — STOP and ask Vanessa to paste her token via VS Code (per project memory feedback_secrets_in_vscode.md). Don't proceed until the token is in place.
-2. Add scripts/generate-pilot-art.ts. Run it once via `npx tsx --env-file=.env.local scripts/generate-pilot-art.ts`. Commit the 8 generated .webp files to public/.
-3. Rename current Drawbridge SVG and Wizard SVG to .bak (preserves rollback path). Update catalog file_paths to point at the new .webp files. Update pickup catalog icon_paths.
-4. Verify renderer handles webp (check StoryPlayer, HeroAvatar, InventoryBar). If any place hardcodes .svg, generalize.
+1. Add lib/image-gen.ts (Replicate Flux 1.1 Pro client + Luma Dream Machine image-to-video helper). Add REPLICATE_API_TOKEN to .env.local — STOP and ask Vanessa to paste her token via VS Code (per project memory feedback_secrets_in_vscode.md). Don't proceed until the token is in place.
+2. Add scripts/generate-pilot-art.ts. Generates 8 .webp images then 1 entry video (.webm or .mp4 — whatever Luma returns). Run it once via `npx tsx --env-file=.env.local scripts/generate-pilot-art.ts`. Commit all generated files to public/. Total expected cost ~$0.64.
+3. Rename current Drawbridge SVG and Wizard SVG to .bak (preserves rollback path). Update catalog file_paths to point at the new .webp files. Update pickup catalog icon_paths. Add `entry_video_path` to Castle drawbridge sub-scene.
+4. Verify renderer handles webp (check StoryPlayer, HeroAvatar, InventoryBar). If any place hardcodes .svg, generalize. Wire up entry-video playback per scope 4a in the brief: `<video>` element with autoplay/muted/playsInline, sessionStorage gate so it plays once per (world_id, scene_id), tap-to-skip, crossfade to static image on end.
 5. Run npx tsc --noEmit and npm run build clean. Push.
 6. Append a B-013 entry to CHANGES.md noting the pilot is awaiting Vanessa's go/no-go after browser inspection.
 
-Do NOT delete the old SVG placeholders (.bak files stay until Vanessa says ship). Do NOT generate any other images. Do NOT generate animations or ambient sound (those are B-012 scope 4-5).
+Do NOT delete the old SVG placeholders (.bak files stay until Vanessa says ship). Do NOT generate any other images or videos. Do NOT generate ambient sound (that's B-012 scope 5). Do NOT add entry videos to any other scene — Drawbridge only.
 
-When done, write a one-line note for Vanessa: "Pilot art pushed, deployed at https://realm-shapers.vercel.app. Pick a Castle realm starting at Drawbridge with a Wizard character to see all 8 images in context. Approve or reject."
+When done, write a one-line note for Vanessa: "Pilot art pushed, deployed at https://realm-shapers.vercel.app. Pick a Castle realm starting at Drawbridge with a Wizard character to see all 8 images + the entry video in context. Approve or reject."
 
 Do not autoplay any audio. Do not use em dashes in user-facing copy. Follow CLAUDE.md.
 ```

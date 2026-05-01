@@ -15,6 +15,34 @@
 
 ---
 
+## B-015 — 2026-05-01 — CLI
+**Touched:**
+- lib/claude.ts (StoryScene gains optional `entry_video_path: string`. Adventure scenes set this to a direct path under /public/. Theme-catalog scenes keep relying on SubScene.entry_video_path).
+- components/StoryPlayer.tsx (entryVideoUrl now falls through `scene.entry_video_path` first, then `SUB_SCENES_BY_ID[scene.background_id]?.entry_video_path`, then null. No other changes; existing playback / sessionStorage gating / tap-to-skip / crossfade / onError fallback all still apply).
+- lib/adventures/hunt-dragon-egg.ts (5 scenes declare entry_video_path: forest_riddle, dark_cavern, lava_river_crossing, volcano_base, dragon_chamber. Each points to its corresponding mp4 under /public/adventures/hunt-dragon-egg/).
+- public/adventures/hunt-dragon-egg/forest_riddle_entry.mp4 (new on disk, ~14 MB; the other 4 mp4s were already committed in earlier batches: dragon_chamber_entry, dark_cavern_entry, lava_river_crossing_entry, volcano_base_speaks_entry).
+- MORNING_CHECKLIST_015.md (new), CHANGES.md.
+
+**State:** Built and deployed to https://realm-shapers.vercel.app. Two clean commits on `main` (e84ce0d, 529b6a8 plus this CHANGES + checklist push). `npx tsc --noEmit` clean, `npm run lint` clean (0 warnings, 0 errors), validator prints `registry OK`, `npm run build` clean. /play first-load JS unchanged at 252 kB. **Smoke tests pending Vanessa AM verification per `MORNING_CHECKLIST_015.md`** — agent did not click through any browser flow.
+
+How the wiring works:
+1. StoryScene type gains optional `entry_video_path`. Optional, so Claude-generated theme trees that never set it keep parsing unchanged.
+2. StoryPlayer prefers scene.entry_video_path (adventure scenes win) over SUB_SCENES_BY_ID[bg].entry_video_path (theme-catalog scenes). Theme-catalog drawbridge keeps working unchanged.
+3. The 5 adventure scenes each point at the corresponding /adventures/hunt-dragon-egg/<scene>_entry.mp4. If a file is ever missing on disk, the existing StoryPlayer onError handler ends the video gracefully and falls through to the static image, so deploy is safe even if Vanessa regenerates the videos.
+4. once-per-session gating uses the existing key `realm-shapers:entry-video-played:<worldId>:<sceneId>`. Works the same way as the drawbridge pilot.
+
+**Open:**
+- **No regression sweep done in browser.** Agent did not load the deployed site to confirm any of the 5 videos actually plays. Per the brief, the wiring is safe (onError falls through), but a smoke test is the only way to confirm the file paths resolve at runtime.
+- **dragon_chamber_entry.mp4 is ~12 MB**, lava is ~11 MB, dark_cavern ~6 MB, forest_riddle ~14 MB. All served as static assets via Vercel CDN. Could feel slow on weak connections; the crossfade hides most of the buffer. Future batch could preload the next scene's mp4.
+- **All 5 videos play muted.** The volcano base speaks but the kid hears nothing on the video itself; the narration text plus Oracle voice covers it. Audio over the videos is out of scope per the brief.
+- **Background variants share one video.** dragon_chamber_calm vs dragon_chamber_wounded both play the same entry video; same for volcano_base_speaks vs volcano_base_thirsty. Out of scope per the brief.
+
+**Next session:** If smoke tests surface a missing-mp4 404 in network panel, regenerate via `npx tsx --env-file=.env.local scripts/generate-hunt-dragon-egg-videos.ts`. If a video looks wrong content-wise, that's a script-side regen, not a code change. Rollback path is `git revert 529b6a8 e84ce0d` + redeploy if the wiring itself is broken.
+
+**Pushed:** yes (529b6a8 plus the CHANGES + checklist commit to follow)
+
+---
+
 ## B-014 — 2026-05-01 — CLI
 **Touched:**
 - lib/pickups-catalog.ts (Pickup type gains optional `coin_value`. New entries: coin_pouch (50), treasure_chest (150), rare_gem (200), glowstone (no coin_value, narration-only)).

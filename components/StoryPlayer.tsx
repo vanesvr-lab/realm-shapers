@@ -13,6 +13,7 @@ import type { ChoiceOption, StoryScene, StoryTree } from "@/lib/claude";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { Interactable } from "@/components/Interactable";
 import { InventoryBar } from "@/components/InventoryBar";
+import { CounterBar } from "@/components/CounterBar";
 import { OracleSpeaks } from "@/components/OracleSpeaks";
 import { ChoiceMoment } from "@/components/ChoiceMoment";
 import { HeroAvatar } from "@/components/HeroAvatar";
@@ -24,8 +25,17 @@ import {
   setAmbientMuted,
   subscribeAmbientMute,
 } from "@/lib/ambient-bus";
-import type { FlagState } from "@/lib/flags";
+import { playChing } from "@/lib/sound-bus";
+import { matchesWhen, type FlagState } from "@/lib/flags";
 import { resolveScene, selectEnding } from "@/lib/scene-resolver";
+import {
+  applyReplenish,
+  applyTick,
+  deriveCounterFlags,
+  type CounterDef,
+  type CounterState,
+} from "@/lib/counters";
+import { getPickup } from "@/lib/pickups-catalog";
 
 // B-012 scope 5. Sub-scene id → ambient track id (lib/ambient-bus). Only the
 // Drawbridge has an ambient loop in this batch; future scenes can extend.
@@ -65,6 +75,15 @@ const CHOICE_POSITIONS: React.CSSProperties[] = [
   { left: "12%", bottom: "22%" },
   { right: "12%", bottom: "22%" },
   { left: "50%", bottom: "14%", transform: "translateX(-50%)" },
+  // Adventure slice: 4th and 5th positions for scenes with backtrack
+  // choices on top of the 3-forward layout (e.g., dragon_chamber's
+  // multi-step appeasement, volcano_base when we add backtrack).
+  { left: "12%", bottom: "44%" },
+  { right: "12%", bottom: "44%" },
+  // B-014 economy: 6th position for scenes that add a market or mount
+  // alongside the existing forward + backtrack stack (e.g., riverbank
+  // gains waterfall, market, mount on top of cross/wood/back).
+  { left: "50%", bottom: "52%", transform: "translateX(-50%)" },
 ];
 
 const PICKUP_POSITIONS: React.CSSProperties[] = [
@@ -83,6 +102,10 @@ export function StoryPlayer({
   onQuitRealm,
   onComplete,
   onEvent,
+  initialInventory,
+  counters,
+  counterDefs,
+  onCountersChange,
 }: {
   worldId: string;
   story: StoryTree;
@@ -97,16 +120,37 @@ export function StoryPlayer({
   // arrangement actually shows up during play. Scene 1 only.
   editorScene1PropIds?: string[];
   onSetFlag: (id: string, value: boolean) => void;
-  onExit: () => void;
+  // Optional: when omitted, the in-scene "↩ Editor" button is hidden.
+  // Adventures (which bypass the SceneEditor entirely) leave this off.
+  onExit?: () => void;
   // B-010 scope 4: when present, the in-game corner button surfaces a
   // confirm dialog and calls this on confirm. Prevents kids from getting
   // stranded mid-realm on bugs like Kellen's phantom brass key.
   onQuitRealm?: () => void;
   onComplete?: (payload: CompletionPayload) => void;
   onEvent?: (event: GameplayEvent) => void;
+  // Adventure slice: starter items the kid pre-picked (e.g., rope, sword).
+  // When present, seeds the inventory before scene 1 plays. Optional so
+  // legacy worlds keep starting with empty pockets.
+  initialInventory?: string[];
+  // Adventure slice: persistent counter state owned by PlayClient (so it
+  // persists across editor / play swaps). When present, the player ticks
+  // and replenishes it on scene entry, derives counter flags for variants
+  // and ending selection, and renders the counter bar UI.
+  counters?: CounterState;
+  counterDefs?: CounterDef[];
+  onCountersChange?: (next: CounterState) => void;
 }) {
   const [sceneId, setSceneId] = useState<string>(story.starting_scene_id);
-  const [inventory, setInventory] = useState<string[]>([]);
+  const [inventory, setInventory] = useState<string[]>(() => initialInventory ?? []);
+  const [activeItemId, setActiveItemId] = useState<string | null>(null);
+  const tickedScenes = useRef<Set<string>>(new Set());
+  // Adventure slice: Ask Oracle button budget. Initialized from
+  // story.oracle_hint_budget (or 0 if absent). Decrements on each use.
+  // Resets via key-driven remount on Play Again.
+  const [oracleHintsLeft, setOracleHintsLeft] = useState<number>(
+    () => story.oracle_hint_budget ?? 0
+  );
   const [visited, setVisited] = useState<Set<string>>(() => new Set([story.starting_scene_id]));
   const [pickedPerScene, setPickedPerScene] = useState<Record<string, string[]>>({});
   const [secretDiscovered, setSecretDiscovered] = useState(false);
@@ -156,11 +200,34 @@ export function StoryPlayer({
       `StoryPlayer: hero asset id "${renderedHeroId}" not found in library; nothing will render`
     );
   }
-  const bgUrl = resolveBackgroundUrl(scene.background_id);
+  // Adventure slice: merge counter-derived booleans (food_critical,
+  // water_empty, etc) into the flag set passed to the scene resolver and
+  // ending selector. The persisted FlagState stays clean (no derived
+  // entries written), but downstream consumers see them through this
+  // memoized merge.
+  const derivedFlags = useMemo(() => {
+    if (!counters || !counterDefs || counterDefs.length === 0) return {};
+    return deriveCounterFlags(counters, counterDefs);
+  }, [counters, counterDefs]);
+  const mergedFlags = useMemo(
+    () => ({ ...flags, ...derivedFlags }),
+    [flags, derivedFlags]
+  );
+  // Adventure slice: pick the right background_id for the current flag
+  // state. Falls through to the scene's base id when no variant matches.
+  const resolvedBackgroundId = useMemo(() => {
+    if (scene.background_variants && scene.background_variants.length > 0) {
+      for (const v of scene.background_variants) {
+        if (matchesWhen(v.when, mergedFlags)) return v.background_id;
+      }
+    }
+    return scene.background_id;
+  }, [scene, mergedFlags]);
+  const bgUrl = resolveBackgroundUrl(resolvedBackgroundId);
   // B-013: optional entry video keyed off the sub-scene catalog. Drawbridge
   // is the only one that has it in the pilot.
   const entryVideoUrl = SUB_SCENES_BY_ID[scene.background_id]?.entry_video_path ?? null;
-  const resolved = useMemo(() => resolveScene(scene, flags), [scene, flags]);
+  const resolved = useMemo(() => resolveScene(scene, mergedFlags), [scene, mergedFlags]);
   // B-010 scope 6: editor placements only affect the starting scene. Editor
   // adds win because the kid placed them deliberately. Cap to the same 3-prop
   // limit the original positions array supports.
@@ -347,6 +414,22 @@ export function StoryPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene.id]);
 
+  // Adventure slice: counter ticks and replenishments on first scene entry
+  // per playthrough. Once a scene id has been ticked, internal loops back
+  // to the same scene (e.g., the dragon chamber tend / sing / kneel
+  // interactables that loop back) do not re-tick.
+  useEffect(() => {
+    if (!counters || !counterDefs || !onCountersChange) return;
+    if (counterDefs.length === 0) return;
+    if (tickedScenes.current.has(scene.id)) return;
+    tickedScenes.current.add(scene.id);
+    let next = counters;
+    if (scene.counter_tick) next = applyTick(next, scene.counter_tick);
+    if (scene.replenish) next = applyReplenish(next, scene.replenish, counterDefs);
+    if (next !== counters) onCountersChange(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene.id]);
+
   // Ending detection.
   useEffect(() => {
     if (!isEnding) return;
@@ -371,7 +454,7 @@ export function StoryPlayer({
     const isOnSecret = !!story.secret_ending && sceneId === story.secret_ending.id;
     if (!isOnSecret && story.endings && story.endings.length > 0 && !endingRedirectedRef.current) {
       endingRedirectedRef.current = true;
-      const target = selectEnding(story.endings, flags);
+      const target = selectEnding(story.endings, mergedFlags);
       if (target && target !== sceneId && sceneById.has(target)) {
         setSceneId(target);
         setVisited((v) => {
@@ -434,7 +517,7 @@ export function StoryPlayer({
     story.secret_ending,
     story.endings,
     renderedHeroId,
-    flags,
+    mergedFlags,
     visited,
     inventory,
     totalPickups,
@@ -506,11 +589,96 @@ export function StoryPlayer({
       });
       return;
     }
+    // B-014 economy: coin gate. Same shape as `requires` but on the coins
+    // counter. Tells the kid plainly so it feels like a price tag, not a
+    // mystery. Gate is checked before deductions so a partial spend never
+    // happens.
+    const coinCost = choice.coin_cost ?? 0;
+    const currentCoins = counters?.coins ?? 0;
+    if (coinCost > 0 && currentCoins < coinCost) {
+      speakOracle({
+        text: `You do not have enough coins for this. ${coinCost} needed.`,
+        kind: "hint",
+      });
+      return;
+    }
     const gateA = endingGateReason(choice.next_scene_id);
     if (gateA) {
       speakGate(gateA);
       return;
     }
+    // Adventure slice: if the kid armed a pickup that this choice consumes
+    // or requires, confirm the action verbally so it feels deliberate.
+    if (
+      activeItemId &&
+      (required.includes(activeItemId) || (choice.consumes ?? []).includes(activeItemId))
+    ) {
+      const meta = ASSETS_BY_ID[activeItemId];
+      const altLower = (meta?.alt ?? activeItemId.replace(/_/g, " ")).toLowerCase();
+      speakOracle({ text: `You use the ${altLower}.`, kind: "discovery" });
+    }
+    // B-014 economy: apply counter and inventory effects in a defined
+    // order. Deduct first, then add. Single onCountersChange call so the
+    // UI sees one transition instead of three. Ching fires once if any
+    // coin movement happened.
+    let countersTouched = false;
+    let coinsMoved = false;
+    if (counters && counterDefs && onCountersChange) {
+      let nextCounters: CounterState = counters;
+      const maxById = new Map(counterDefs.map((d) => [d.id, d.max]));
+      if (coinCost > 0) {
+        nextCounters = {
+          ...nextCounters,
+          coins: Math.max(0, (nextCounters.coins ?? 0) - coinCost),
+        };
+        countersTouched = true;
+        coinsMoved = true;
+      }
+      if (choice.consumes_counter) {
+        const updated = { ...nextCounters };
+        for (const [id, amount] of Object.entries(choice.consumes_counter)) {
+          updated[id] = Math.max(0, (updated[id] ?? 0) - amount);
+          if (id === "coins") coinsMoved = true;
+        }
+        nextCounters = updated;
+        countersTouched = true;
+      }
+      if (choice.grants_counter) {
+        const updated = { ...nextCounters };
+        for (const [id, amount] of Object.entries(choice.grants_counter)) {
+          const max = maxById.get(id) ?? Infinity;
+          updated[id] = Math.min(max, (updated[id] ?? 0) + amount);
+          if (id === "coins") coinsMoved = true;
+        }
+        nextCounters = updated;
+        countersTouched = true;
+      }
+      if (countersTouched) onCountersChange(nextCounters);
+    }
+    // Adventure slice: consume listed pickups (food, water).
+    if (choice.consumes && choice.consumes.length > 0) {
+      const removeSet = new Set(choice.consumes);
+      setInventory((inv) => inv.filter((id) => !removeSet.has(id)));
+    }
+    // Adventure slice: grant pickups (e.g. take_egg grants dragons_egg).
+    if (choice.grants && choice.grants.length > 0) {
+      const granted = choice.grants;
+      setInventory((inv) => {
+        const next = inv.slice();
+        for (const id of granted) {
+          if (!next.includes(id)) next.push(id);
+        }
+        return next;
+      });
+    }
+    // Adventure slice: per-choice flag set, distinct from the per-scene
+    // flag_set (which fires on scene exit) and from ChoiceOption.sets_flag
+    // (which fires on is_choice_scene two-button branches).
+    if (choice.sets_flag) {
+      onSetFlag(choice.sets_flag, true);
+    }
+    if (coinsMoved) playChing();
+    setActiveItemId(null);
     visitScene(choice.next_scene_id);
   }
 
@@ -540,7 +708,26 @@ export function StoryPlayer({
       ...map,
       [scene.id]: Array.from(new Set([...(map[scene.id] ?? []), propId])),
     }));
-    const meta = ASSETS_BY_ID[propId];
+    // B-014 economy: treasure pickups also grant coins. The item still
+    // lands in inventory as a trophy (so kids see what they earned at
+    // ending time) but the coin value is added to the coins counter and
+    // a ching plays. Idempotent if the kid taps the same pickup twice
+    // because applyReplenish sums the value but pickup is single-use per
+    // scene (remainingPickups filters picked ones).
+    const catalog = getPickup(propId);
+    if (catalog?.coin_value && counters && counterDefs && onCountersChange) {
+      const coinsDef = counterDefs.find((d) => d.id === "coins");
+      if (coinsDef) {
+        const current = counters.coins ?? coinsDef.start_at ?? coinsDef.max;
+        const next: CounterState = {
+          ...counters,
+          coins: Math.min(coinsDef.max, current + catalog.coin_value),
+        };
+        onCountersChange(next);
+        playChing();
+      }
+    }
+    const meta = ASSETS_BY_ID[propId] ?? (catalog ? { alt: catalog.label } : null);
     speakOracle({
       text: meta ? `You collect the ${meta.alt.toLowerCase()}.` : "You collect it.",
       kind: "discovery",
@@ -745,12 +932,18 @@ export function StoryPlayer({
               scene.choices.map((choice, i) => {
                 const required = choice.requires ?? [];
                 const missing = required.filter((r) => !inventory.includes(r));
-                const locked = missing.length > 0;
-                const lockedHint = locked
-                  ? `Find ${missing
-                      .map((id) => ASSETS_BY_ID[id]?.alt ?? id)
-                      .join(" + ")} first`
-                  : undefined;
+                const coinCost = choice.coin_cost ?? 0;
+                const coinsAvailable = counters?.coins ?? 0;
+                const coinsShort = coinCost > 0 && coinsAvailable < coinCost;
+                const locked = missing.length > 0 || coinsShort;
+                let lockedHint: string | undefined;
+                if (missing.length > 0) {
+                  lockedHint = `Find ${missing
+                    .map((id) => ASSETS_BY_ID[id]?.alt ?? id)
+                    .join(" + ")} first`;
+                } else if (coinsShort) {
+                  lockedHint = `Need ${coinCost} coins (you have ${coinsAvailable})`;
+                }
                 const pos = CHOICE_POSITIONS[i] ?? CHOICE_POSITIONS[0];
                 const dest = sceneById.get(choice.next_scene_id);
                 const leadsToSideQuest = dest?.is_side_quest === true;
@@ -779,13 +972,48 @@ export function StoryPlayer({
       </div>
 
       <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 items-end">
-        <button
-          type="button"
-          onClick={onExit}
-          className="px-3 py-2 rounded-lg bg-white/90 text-amber-900 font-semibold text-sm shadow"
-        >
-          ↩ Editor
-        </button>
+        {onExit && (
+          <button
+            type="button"
+            onClick={onExit}
+            className="px-3 py-2 rounded-lg bg-white/90 text-amber-900 font-semibold text-sm shadow"
+          >
+            ↩ Editor
+          </button>
+        )}
+        {(story.oracle_hint_budget ?? 0) > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              if (oracleHintsLeft <= 0) {
+                speakOracle({
+                  text: "I have told you all I can. The rest is yours to find.",
+                  kind: "hint",
+                });
+                return;
+              }
+              const hint =
+                scene.oracle_hint ??
+                "Look closely. The way forward is here, even if quiet.";
+              speakOracle({ text: hint, kind: "hint" });
+              setOracleHintsLeft((n) => n - 1);
+            }}
+            disabled={oracleHintsLeft <= 0}
+            className="px-3 py-2 rounded-lg bg-purple-100/95 text-purple-900 font-semibold text-sm shadow flex items-center gap-1 disabled:opacity-50"
+            aria-label={`Ask Oracle, ${oracleHintsLeft} left`}
+            title={
+              oracleHintsLeft > 0
+                ? `Ask the Oracle (${oracleHintsLeft} left)`
+                : "No Oracle hints left"
+            }
+          >
+            <span aria-hidden>🔮</span>
+            <span>
+              Ask Oracle{" "}
+              <span className="text-xs opacity-80">{oracleHintsLeft}</span>
+            </span>
+          </button>
+        )}
         {AMBIENT_TRACK_BY_BACKGROUND[scene.background_id] && (
           <button
             type="button"
@@ -857,6 +1085,9 @@ export function StoryPlayer({
         {audioError && !audioUrl && (
           <p className="text-xs text-amber-100 bg-black/50 rounded px-3 py-1">Sound unavailable</p>
         )}
+        {counters && counterDefs && counterDefs.length > 0 && (
+          <CounterBar counters={counters} defs={counterDefs} />
+        )}
         <InventoryBar
           items={inventory}
           worldId={worldId}
@@ -866,6 +1097,10 @@ export function StoryPlayer({
           recentlySummonedId={recentlySummonedId}
           onSummonGranted={handleSummonGranted}
           onSummonDenied={handleSummonDenied}
+          activeItemId={activeItemId}
+          onItemTap={(id) =>
+            setActiveItemId((current) => (current === id ? null : id))
+          }
         />
       </div>
 

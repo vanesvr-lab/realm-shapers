@@ -1220,7 +1220,7 @@ export function StoryPlayer({
       {/* B-017: narration block right-aligned and shrunk so the bottom-left
           half of the scene stays clear for the glowing pickup. Caps lines
           via line-clamp-3 with overflow visible on hover/scroll. */}
-      <div className="relative mt-auto p-4 sm:p-6 flex flex-col gap-3 max-w-md ml-auto w-full sm:pr-6">
+      <div className="relative mt-auto mb-20 sm:mb-24 p-4 sm:p-6 flex flex-col gap-3 max-w-md ml-auto w-full sm:pr-6">
         <AnimatePresence mode="wait">
           <motion.div
             key={`${scene.id}-narration`}
@@ -1337,7 +1337,7 @@ function PickupGlow({
   return (
     <div
       className="absolute pointer-events-auto"
-      style={positionStyle}
+      style={{ ...positionStyle, width: "min(13vw, 100px)", height: "min(13vw, 100px)" }}
     >
       <motion.button
         type="button"

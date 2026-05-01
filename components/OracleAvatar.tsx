@@ -125,7 +125,7 @@ export function OracleAvatar() {
   if (HIDDEN_PATHS.some((p) => pathname.startsWith(p))) return null;
 
   return (
-    <div className="fixed bottom-3 right-3 z-30 pointer-events-none">
+    <div className="fixed bottom-3 right-3 z-50 pointer-events-none">
       <div className="flex items-end gap-2 pointer-events-auto">
         <AnimatePresence>
           {bubble && (

@@ -257,7 +257,11 @@ export function StoryPlayer({
   const bgUrl = resolveBackgroundUrl(resolvedBackgroundId);
   // B-013: optional entry video keyed off the sub-scene catalog. Drawbridge
   // is the only one that has it in the pilot.
-  const entryVideoUrl = SUB_SCENES_BY_ID[scene.background_id]?.entry_video_path ?? null;
+  // B-015: adventure scenes can set scene.entry_video_path directly; that wins.
+  const entryVideoUrl =
+    scene.entry_video_path ??
+    SUB_SCENES_BY_ID[scene.background_id]?.entry_video_path ??
+    null;
   const resolved = useMemo(() => resolveScene(scene, mergedFlags), [scene, mergedFlags]);
   // B-010 scope 6: editor placements only affect the starting scene. Editor
   // adds win because the kid placed them deliberately. Cap to the same 3-prop

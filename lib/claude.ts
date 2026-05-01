@@ -215,6 +215,11 @@ export type StoryScene = {
   // Ask Oracle button on this scene. Tone: nudge, not spoiler. Optional;
   // scenes without a hint get a generic fallback.
   oracle_hint?: string;
+  // B-015: optional direct path to an MP4 entry video under /public/.
+  // Adventure scenes set this; theme-catalog scenes leave it unset and rely
+  // on the SubScene.entry_video_path lookup. StoryPlayer prefers this when
+  // both are set.
+  entry_video_path?: string;
 };
 
 export type HeroLine = {

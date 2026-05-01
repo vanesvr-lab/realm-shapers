@@ -53,6 +53,7 @@ const SCENE = {
   ending_appeased: "ending_appeased",
   ending_blessed: "ending_blessed",
   ending_composer: "ending_composer",
+  ending_riddle_genius: "ending_riddle_genius",
   ending_success: "ending_success",
   ending_secret: "ending_secret",
 } as const;
@@ -850,7 +851,7 @@ const DRAGON_RIDDLE: StoryScene = {
     {
       label: "A mountain",
       sets_flag: FLAG.riddle_answered,
-      goes_to: SCENE.dragon_chamber,
+      goes_to: SCENE.ending_riddle_genius,
     },
     {
       label: "A tall tower",
@@ -1314,6 +1315,23 @@ const ENDING_COMPOSER: StoryScene = {
   choices: [],
 };
 
+// The dragon poses a riddle in dragon_chamber; the right answer resolves
+// the trial in a single move. Vex breathes slow, the egg comes free, and
+// the realm names the kid a genius. Reuses ending_friend.webp for art
+// since both endings share the "the dragon respects you" beat.
+const ENDING_RIDDLE_GENIUS: StoryScene = {
+  id: SCENE.ending_riddle_genius,
+  title: "Genius Riddle Solver",
+  narration:
+    "She blinks once, slow, and the cavern fills with quiet. \"Few find that answer, traveler. Take the egg. It is yours by mind, not by hand.\" The egg lifts gently from the nest and floats to your palms, warm and humming. The realm tells the tale: the wit that bested a dragon, the trial earned by thinking it through.",
+  background_id: BG("ending_friend"),
+  ambient_audio_prompt: "deep slow dragon breath, faint warm hum, soft awe",
+  default_props: [],
+  pickups: [],
+  is_side_quest: false,
+  choices: [],
+};
+
 const ENDING_SECRET: StoryScene = {
   id: SCENE.ending_secret,
   title: "Hatched at Home",
@@ -1365,6 +1383,7 @@ const STORY: StoryTree = {
     ENDING_APPEASED,
     ENDING_BLESSED,
     ENDING_COMPOSER,
+    ENDING_RIDDLE_GENIUS,
     ENDING_SUCCESS,
   ],
   secret_ending: ENDING_SECRET,
@@ -1394,6 +1413,9 @@ const STORY: StoryTree = {
     // above Friend so a tended-and-sung-and-played-masterwork run gets
     // the rarest tier.
     { scene_id: SCENE.ending_composer, requires: { [FLAG.composer_masterwork]: true } },
+    // Right riddle answer wins over Friend even if the kid tended and
+    // sang first; the riddle earns the marquee tier.
+    { scene_id: SCENE.ending_riddle_genius, requires: { [FLAG.riddle_answered]: true } },
     {
       scene_id: SCENE.ending_friend,
       requires: { [FLAG.tended_wound]: true, [FLAG.sang_lullaby]: true },

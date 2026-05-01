@@ -19,7 +19,7 @@ export default function LoginPage() {
         email,
         options: {
           emailRedirectTo: redirectTo,
-          shouldCreateUser: false,
+          shouldCreateUser: true,
         },
       });
       if (otpError) {

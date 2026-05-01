@@ -16,6 +16,7 @@ import {
   type SubScene,
 } from "@/lib/themes-catalog";
 import { CHARACTERS_BY_ID, type Character } from "@/lib/characters-catalog";
+import { PICKUPS_BY_ID } from "@/lib/pickups-catalog";
 
 // B-011 scope 6: theme-driven generation context. When ingredients carries
 // theme_id + entry_sub_scene_id (set by the new landing form via
@@ -497,8 +498,42 @@ function buildThemeLibraryBlock(ctx: ThemeContext): string {
     if (s.can_be_ending) flags.push("Ending: yes");
     else flags.push("Ending: no");
     const adj = s.connects_to.length ? s.connects_to.join(", ") : "(none)";
-    return `- ${s.id} (${s.label}): ${s.description}. Connects to: ${adj}. ${flags.join(". ")}.`;
+    const req =
+      s.required_pickups && s.required_pickups.length > 0
+        ? ` **Requires: ${s.required_pickups.join(", ")}.**`
+        : "";
+    return `- ${s.id} (${s.label}): ${s.description}. Connects to: ${adj}. ${flags.join(". ")}.${req}`;
   });
+
+  // B-012 scope 2: list pickup ids referenced by any required_pickups in this
+  // theme's sub-scene library, with their human-friendly metadata. Claude
+  // needs both the id (for `pickups` and `requires` arrays) and the label /
+  // description to write coherent flavor text around them.
+  const requiredIds = new Set<string>();
+  for (const s of ctx.theme.sub_scenes) {
+    for (const pid of s.required_pickups ?? []) requiredIds.add(pid);
+  }
+  let pickupBlock = "";
+  if (requiredIds.size > 0) {
+    const pickupLines: string[] = [];
+    Array.from(requiredIds).forEach((pid) => {
+      const p = PICKUPS_BY_ID[pid];
+      if (!p) return;
+      pickupLines.push(`- ${p.id} ("${p.label}"): ${p.description}`);
+    });
+    if (pickupLines.length > 0) {
+      pickupBlock = `
+
+GATE PICKUPS for this theme. These pickup ids MAY appear in scene "pickups" arrays AND in choice "requires" arrays in addition to the asset library prop ids:
+${pickupLines.join("\n")}
+
+REQUIRED-PICKUP RULE (CRITICAL). For every sub-scene above marked **Requires: X**:
+- The kid MUST be able to pick up X in some EARLIER scene before reaching that gated sub-scene. Place X in the "pickups" array of a scene at array index 1, 2, 3, or 4 (the geographic adjacency half of the tree).
+- The choice that LEADS INTO the gated sub-scene MUST include "requires": ["X"] in its choice schema, so the existing parser locks the door until X is collected.
+- The same id you put in "pickups" goes into "requires"; do not invent variants.`;
+    }
+  }
+
   return `THEME-DRIVEN BACKGROUND MODE. Your story takes place in the ${ctx.theme.label} world. Here are the available sub-scenes:
 ${lines.join("\n")}
 
@@ -508,7 +543,7 @@ ADJACENCY RULES (CRITICAL).
 - Each scene's "background_id" MUST be one of the sub-scene ids above (no other ids allowed in this realm).
 - For scenes at array indices 2, 3, and 4 (i.e. the 3rd, 4th, and 5th scenes in the "scenes" array): the "background_id" MUST appear in the previous scene's "connects_to" list. This makes the first half of the realm feel like real navigation.
 - For scenes at index 5 and beyond: any sub-scene id from this theme is allowed. You can bridge narratively ("a hidden door appears...") to keep the story flowing.
-- Ending scenes (choices: []) MUST use a sub-scene where "Ending: yes" above. The ending choice does NOT need to satisfy adjacency.
+- Ending scenes (choices: []) MUST use a sub-scene where "Ending: yes" above. The ending choice does NOT need to satisfy adjacency.${pickupBlock}
 
 DO NOT set "inline_svg" on any scene; the catalog backgrounds cover this realm.`;
 }
@@ -1102,13 +1137,23 @@ function parseScene(
   return out;
 }
 
+// B-012 scope 2: pickup ids in the new lib/pickups-catalog (rusty_key, torch,
+// climbing_rope, dragons_lullaby, ancient_tome, dragons_egg) are also valid
+// references in scene "pickups" arrays and choice "requires" arrays. The
+// in-game pickup-resolver decides which file_path to render. Asset library
+// ids still take precedence; catalog ids slot in where the asset library has
+// no entry.
+function isValidPickupOrPropId(id: string): boolean {
+  return isValidPropId(id) || id in PICKUPS_BY_ID;
+}
+
 function parsePropList(raw: unknown, max: number): string[] {
   const arr = Array.isArray(raw) ? raw : [];
   const out: string[] = [];
   const seen = new Set<string>();
   for (const p of arr) {
     if (typeof p !== "string") continue;
-    if (!isValidPropId(p)) continue;
+    if (!isValidPickupOrPropId(p)) continue;
     if (seen.has(p)) continue;
     seen.add(p);
     out.push(p);
@@ -1134,7 +1179,7 @@ function parseChoice(raw: unknown, sceneIdx: number, choiceIdx: number): StoryCh
   }
   let requires: string[] | undefined;
   if (Array.isArray(c.requires)) {
-    const filtered = c.requires.filter((r): r is string => typeof r === "string" && isValidPropId(r));
+    const filtered = c.requires.filter((r): r is string => typeof r === "string" && isValidPickupOrPropId(r));
     if (filtered.length > 0) requires = Array.from(new Set(filtered));
   }
   let hint: string | undefined;

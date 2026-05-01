@@ -792,8 +792,14 @@ export function StoryPlayer({
       }
     }
     const meta = ASSETS_BY_ID[propId] ?? (catalog ? { alt: catalog.label } : null);
+    // B-017: surface the catalog hint alongside the pickup confirmation so
+    // the kid hears WHAT the thing is and a small clue about it in one go.
+    const baseLine = meta
+      ? `You collect the ${meta.alt.toLowerCase()}.`
+      : "You collect it.";
+    const hint = catalog?.hint?.trim();
     speakOracle({
-      text: meta ? `You collect the ${meta.alt.toLowerCase()}.` : "You collect it.",
+      text: hint ? `${baseLine} ${hint}` : baseLine,
       kind: "discovery",
     });
     onEvent?.({
@@ -944,45 +950,24 @@ export function StoryPlayer({
               );
             })}
 
-            {/* Pickups: glowing collectables */}
+            {/* Pickups: glowing collectables. B-017: hover or tap-and-hold
+                surfaces the pickup's hint as a caption underneath the prop;
+                normal tap still picks it up. */}
             {remainingPickups.map((propId, i) => {
               const rendered = resolvePickupRender(propId);
               if (!rendered) return null;
               const { url, alt } = rendered;
               const pos = PICKUP_POSITIONS[i] ?? PICKUP_POSITIONS[0];
+              const hint = getPickup(propId)?.hint ?? null;
               return (
-                <motion.button
+                <PickupGlow
                   key={`${scene.id}-pickup-${propId}`}
-                  type="button"
-                  onClick={() => pickup(propId)}
-                  aria-label={`Pick up ${alt}`}
-                  className="absolute pointer-events-auto focus:outline-none"
-                  style={{ ...pos, width: "min(13vw, 100px)", height: "min(13vw, 100px)" }}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{
-                    opacity: 1,
-                    scale: [1, 1.07, 1],
-                    filter: [
-                      "drop-shadow(0 0 6px rgba(255,235,150,0.65))",
-                      "drop-shadow(0 0 22px rgba(255,235,150,1))",
-                      "drop-shadow(0 0 6px rgba(255,235,150,0.65))",
-                    ],
-                  }}
-                  transition={{
-                    opacity: { duration: 0.4 },
-                    scale: { repeat: Infinity, duration: 2, ease: "easeInOut" },
-                    filter: { repeat: Infinity, duration: 2, ease: "easeInOut" },
-                  }}
-                >
-                  <Image
-                    src={url}
-                    alt={alt}
-                    fill
-                    unoptimized
-                    sizes="100px"
-                    className="object-contain pointer-events-none"
-                  />
-                </motion.button>
+                  url={url}
+                  alt={alt}
+                  hint={hint}
+                  positionStyle={pos}
+                  onPickup={() => pickup(propId)}
+                />
               );
             })}
 
@@ -1056,10 +1041,17 @@ export function StoryPlayer({
                 });
                 return;
               }
-              const hint =
-                scene.oracle_hint ??
-                "Look closely. The way forward is here, even if quiet.";
-              speakOracle({ text: hint, kind: "hint" });
+              // B-017: only decrement when we actually speak a real hint.
+              // Empty / whitespace fallback used to silently drop the
+              // counter; now we speak a meaningful default and only spend
+              // a hint when there is a real line to deliver.
+              const sceneHint = scene.oracle_hint?.trim();
+              const fallback = "I have no whisper for you here. Try walking on, and look for the things that gleam.";
+              const lineToSpeak = sceneHint && sceneHint.length > 0 ? sceneHint : fallback;
+              if (lineToSpeak.length === 0) {
+                return;
+              }
+              speakOracle({ text: lineToSpeak, kind: "hint" });
               setOracleHintsLeft((n) => n - 1);
             }}
             disabled={oracleHintsLeft <= 0}
@@ -1168,7 +1160,10 @@ export function StoryPlayer({
         />
       </div>
 
-      <div className="relative mt-auto p-4 sm:p-6 flex flex-col gap-4 max-w-3xl mx-auto w-full">
+      {/* B-017: narration block right-aligned and shrunk so the bottom-left
+          half of the scene stays clear for the glowing pickup. Caps lines
+          via line-clamp-3 with overflow visible on hover/scroll. */}
+      <div className="relative mt-auto p-4 sm:p-6 flex flex-col gap-3 max-w-md ml-auto w-full sm:pr-6">
         <AnimatePresence mode="wait">
           <motion.div
             key={`${scene.id}-narration`}
@@ -1176,10 +1171,9 @@ export function StoryPlayer({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -10, opacity: 0 }}
             transition={{ duration: 0.4 }}
-            className="bg-white/95 rounded-2xl shadow-xl p-4 sm:p-5"
+            className="bg-white/95 rounded-2xl shadow-xl p-3 sm:p-4 text-right"
           >
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <h2 className="text-xl sm:text-2xl font-bold text-amber-900">{scene.title}</h2>
+            <div className="flex items-center gap-2 mb-1 flex-wrap justify-end">
               {isSideQuestScene && (
                 <span
                   className="text-[10px] sm:text-xs uppercase tracking-widest font-bold rounded-full px-2 py-0.5 bg-gradient-to-r from-fuchsia-200 to-purple-200 text-purple-900 border border-fuchsia-300"
@@ -1188,22 +1182,23 @@ export function StoryPlayer({
                   ✨ side quest
                 </span>
               )}
+              <h2 className="text-lg sm:text-xl font-bold text-amber-900">{scene.title}</h2>
             </div>
-            <p className="text-base sm:text-lg text-slate-800 leading-relaxed">{resolved.narration}</p>
+            <p className="text-sm sm:text-base text-slate-800 leading-snug line-clamp-3">{resolved.narration}</p>
           </motion.div>
         </AnimatePresence>
 
         {isChoiceScene ? (
-          <p className="text-center text-amber-50/85 text-xs sm:text-sm">
+          <p className="text-right text-amber-50/85 text-xs">
             A moment of choice. Pick a path.
           </p>
         ) : !isEnding ? (
-          <p className="text-center text-amber-50/85 text-xs sm:text-sm">
-            Tap a glowing thing to explore. {scene.choices.length} ways forward.
+          <p className="text-right text-amber-50/85 text-xs">
+            Tap a glowing thing. {scene.choices.length} ways forward.
           </p>
         ) : (
-          <p className="text-center text-amber-50/85 text-xs sm:text-sm">
-            The realm rests. The Oracle has prepared a card for you.
+          <p className="text-right text-amber-50/85 text-xs">
+            The realm rests. The Oracle has prepared a card.
           </p>
         )}
       </div>
@@ -1242,6 +1237,128 @@ export function StoryPlayer({
 function firstSentence(text: string): string {
   const m = text.match(/^[^.!?]*[.!?]/);
   return (m?.[0] ?? text).trim();
+}
+
+// B-017: a glowing pickup with hover (desktop) and tap-and-hold (mobile)
+// captioning. Tap is reserved for pickup; long-press shows the caption only.
+function PickupGlow({
+  url,
+  alt,
+  hint,
+  positionStyle,
+  onPickup,
+}: {
+  url: string;
+  alt: string;
+  hint: string | null;
+  positionStyle: React.CSSProperties;
+  onPickup: () => void;
+}) {
+  const [showCaption, setShowCaption] = useState(false);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFiredRef = useRef(false);
+  const captionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+      if (captionTimerRef.current) clearTimeout(captionTimerRef.current);
+    };
+  }, []);
+
+  function clearTimers() {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    if (captionTimerRef.current) {
+      clearTimeout(captionTimerRef.current);
+      captionTimerRef.current = null;
+    }
+  }
+
+  return (
+    <div
+      className="absolute pointer-events-auto"
+      style={positionStyle}
+    >
+      <motion.button
+        type="button"
+        onClick={(e) => {
+          if (longPressFiredRef.current) {
+            longPressFiredRef.current = false;
+            e.preventDefault();
+            return;
+          }
+          onPickup();
+        }}
+        onMouseEnter={() => {
+          if (hint) setShowCaption(true);
+        }}
+        onMouseLeave={() => {
+          setShowCaption(false);
+        }}
+        onTouchStart={() => {
+          if (!hint) return;
+          longPressFiredRef.current = false;
+          if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = setTimeout(() => {
+            longPressFiredRef.current = true;
+            setShowCaption(true);
+          }, 350);
+        }}
+        onTouchEnd={() => {
+          if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+          }
+          if (captionTimerRef.current) clearTimeout(captionTimerRef.current);
+          captionTimerRef.current = setTimeout(() => setShowCaption(false), 1500);
+        }}
+        onTouchCancel={() => {
+          clearTimers();
+          setShowCaption(false);
+          longPressFiredRef.current = false;
+        }}
+        aria-label={`Pick up ${alt}`}
+        className="absolute inset-0 focus:outline-none"
+        style={{ width: "100%", height: "100%" }}
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{
+          opacity: 1,
+          scale: [1, 1.07, 1],
+          filter: [
+            "drop-shadow(0 0 6px rgba(255,235,150,0.65))",
+            "drop-shadow(0 0 22px rgba(255,235,150,1))",
+            "drop-shadow(0 0 6px rgba(255,235,150,0.65))",
+          ],
+        }}
+        transition={{
+          opacity: { duration: 0.4 },
+          scale: { repeat: Infinity, duration: 2, ease: "easeInOut" },
+          filter: { repeat: Infinity, duration: 2, ease: "easeInOut" },
+        }}
+      >
+        <Image
+          src={url}
+          alt={alt}
+          fill
+          unoptimized
+          sizes="100px"
+          className="object-contain pointer-events-none"
+        />
+      </motion.button>
+      {showCaption && hint && (
+        <div
+          className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 rounded-md bg-black/80 text-amber-50 text-[11px] sm:text-xs font-medium shadow-lg pointer-events-none whitespace-nowrap max-w-[60vw] truncate"
+          role="status"
+          aria-live="polite"
+        >
+          {hint}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Strip script tags, on* event handlers, and external javascript: refs from a

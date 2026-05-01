@@ -83,7 +83,10 @@ const BG = (id: string) => `adventure:hunt-dragon-egg/${id}`;
 // narrative.
 const FOREST_RIDDLE: StoryScene = {
   id: SCENE.forest_riddle,
-  title: "The Old Oak's Riddle",
+  // B-017: the rendered art is the enchanted forest, not the oak itself, so
+  // the title now matches what the kid sees. The riddle motif still lives
+  // in the narration body (and in narration variants downstream).
+  title: "The Enchanted Forest",
   narration:
     "An ancient oak blocks the path, and a face has formed in its bark. It opens one slow eye and speaks. \"Answer my riddle, traveler, before you walk on. I run but never walk. I have a bed but never sleep. I have a mouth but never eat. What am I?\"",
   background_id: BG("forest_riddle"),

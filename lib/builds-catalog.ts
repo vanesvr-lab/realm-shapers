@@ -83,6 +83,40 @@ export const BUILD_TARGETS: BuildTarget[] = [
 export const BUILD_TARGETS_BY_ID: Record<string, BuildTarget> =
   Object.fromEntries(BUILD_TARGETS.map((b) => [b.id, b]));
 
+// The Supreme Shop sells materials under canonical ids (wood, rope, ...),
+// but the existing adventure also grants conceptually-equivalent items
+// under older ids (wood_logs from the wood_gathering scene, climbing_rope
+// from the starter picker). To keep the build panel from telling a kid
+// who already has wood that their pockets are empty, declare equivalence
+// here. Each canonical material maps to the inventory ids that satisfy
+// it. The canonical id MUST appear first so the resolver prefers it
+// when both forms are present.
+export const MATERIAL_ALIASES: Record<string, string[]> = {
+  wood: ["wood", "wood_logs"],
+  rope: ["rope", "climbing_rope"],
+};
+
+// Returns true if the kid's inventory satisfies the canonical material
+// requirement (directly or via an alias).
+export function ownsMaterial(material: string, inventory: string[]): boolean {
+  const aliases = MATERIAL_ALIASES[material] ?? [material];
+  return aliases.some((id) => inventory.includes(id));
+}
+
+// Resolve a canonical material to the actual inventory id that should be
+// consumed. Picks the first alias present (canonical id first when
+// available). Returns null if the kid does not own this material.
+export function resolveOwnedMaterialId(
+  material: string,
+  inventory: string[]
+): string | null {
+  const aliases = MATERIAL_ALIASES[material] ?? [material];
+  for (const id of aliases) {
+    if (inventory.includes(id)) return id;
+  }
+  return null;
+}
+
 // Reverse map: built pickup id -> BuildTarget. Used at consume time so
 // StoryPlayer can apply level-tier flags from the consumed item.
 export const BUILD_TARGETS_BY_PICKUP_ID: Record<string, BuildTarget> =

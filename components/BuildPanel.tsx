@@ -14,9 +14,17 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   BUILD_TARGETS,
   BUILD_TARGETS_BY_ID,
+  MATERIAL_ALIASES,
   builderTier,
   detectBuildTarget,
+  ownsMaterial,
+  resolveOwnedMaterialId,
 } from "@/lib/builds-catalog";
+
+// Inventory ids (across all canonical materials and their legacy aliases)
+// that should surface in the "Materials on hand" list even when their
+// pickup kind is not "material" (e.g. wood_logs is kind: "tool").
+const MATERIAL_ALIAS_IDS = new Set(Object.values(MATERIAL_ALIASES).flat());
 import { scoreBuildPrompt } from "@/lib/build-scorer";
 import { getPickup, PICKUPS_BY_ID } from "@/lib/pickups-catalog";
 
@@ -53,7 +61,11 @@ export function BuildPanel({
     const counts = new Map<string, number>();
     for (const id of inventory) counts.set(id, (counts.get(id) ?? 0) + 1);
     return Array.from(counts.entries())
-      .filter(([id]) => PICKUPS_BY_ID[id]?.kind === "material")
+      .filter(
+        ([id]) =>
+          PICKUPS_BY_ID[id]?.kind === "material" ||
+          MATERIAL_ALIAS_IDS.has(id)
+      )
       .map(([id, count]) => ({ id, count }));
   }, [inventory]);
 
@@ -79,9 +91,10 @@ export function BuildPanel({
       );
       return;
     }
-    // Material check.
-    const ownedSet = new Set(inventory);
-    const missing = target.required_materials.filter((m) => !ownedSet.has(m));
+    // Material check (alias-aware so wood_logs satisfies wood, etc.).
+    const missing = target.required_materials.filter(
+      (m) => !ownsMaterial(m, inventory)
+    );
     if (missing.length > 0) {
       const names = missing
         .map((id) => getPickup(id)?.label ?? id)
@@ -89,10 +102,15 @@ export function BuildPanel({
       setSubmitMessage(`Missing materials: ${names}. Visit the Supreme Shop.`);
       return;
     }
+    // Resolve each canonical requirement to the actual inventory id so the
+    // parent's consume step removes the right pickup.
+    const resolvedConsumes = target.required_materials
+      .map((m) => resolveOwnedMaterialId(m, inventory))
+      .filter((id): id is string => id !== null);
     onBuild({
       pickupId: `built_${target.id}`,
       level: score.level,
-      consumes: target.required_materials,
+      consumes: resolvedConsumes,
       feedback: "", // parent fills via build-scorer.buildFeedbackLine
     });
     setPrompt("");
@@ -262,9 +280,8 @@ export function BuildPanel({
               {BUILD_TARGETS.map((t) => {
                 const builtMeta = getPickup(`built_${t.id}`);
                 if (!builtMeta) return null;
-                const ownedSet = new Set(inventory);
                 const missing = t.required_materials.filter(
-                  (m) => !ownedSet.has(m)
+                  (m) => !ownsMaterial(m, inventory)
                 );
                 const ready = missing.length === 0;
                 return (

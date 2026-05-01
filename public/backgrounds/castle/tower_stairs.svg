@@ -1,8 +1,63 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
-  <rect width="1600" height="900" fill="#7c8aa1"/>
-  <rect width="1600" height="640" fill="#a3a8b8" opacity="0.55"/>
-  <polygon points="0,600 400,420 760,540 1080,360 1400,520 1600,460 1600,900 0,900" fill="#3a4150" opacity="0.85"/>
-  <circle cx="320" cy="240" r="60" fill="#a3a8b8" opacity="0.6"/>
-  <circle cx="1180" cy="200" r="44" fill="#a3a8b8" opacity="0.5"/>
-  <text x="1580" y="880" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="22" fill="rgba(0,0,0,0.55)">placeholder: castle_tower_stairs</text>
+  <defs>
+    <linearGradient id="ts_wall" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#5e5246"/>
+      <stop offset="1" stop-color="#3a3328"/>
+    </linearGradient>
+    <linearGradient id="ts_sky" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#7aaad4"/>
+      <stop offset="1" stop-color="#bcd6e8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#ts_wall)"/>
+  <ellipse cx="800" cy="450" rx="600" ry="500" fill="#2a261f"/>
+  <g fill="#5e5246">
+    <ellipse cx="800" cy="850" rx="500" ry="80"/>
+    <ellipse cx="800" cy="780" rx="460" ry="60"/>
+    <ellipse cx="800" cy="710" rx="420" ry="50"/>
+    <ellipse cx="800" cy="640" rx="380" ry="44"/>
+    <ellipse cx="800" cy="570" rx="340" ry="40"/>
+    <ellipse cx="800" cy="500" rx="300" ry="36"/>
+    <ellipse cx="800" cy="430" rx="260" ry="32"/>
+    <ellipse cx="800" cy="360" rx="220" ry="28"/>
+    <ellipse cx="800" cy="290" rx="180" ry="24"/>
+    <ellipse cx="800" cy="220" rx="140" ry="20"/>
+  </g>
+  <g fill="#3a3328" opacity="0.7">
+    <path d="M300 850 Q500 800 800 800 Q1100 800 1300 850 Z"/>
+    <path d="M340 780 Q500 740 800 740 Q1100 740 1260 780 Z"/>
+    <path d="M380 710 Q520 680 800 680 Q1080 680 1220 710 Z"/>
+    <path d="M420 640 Q540 620 800 620 Q1060 620 1180 640 Z"/>
+    <path d="M460 570 Q560 560 800 560 Q1040 560 1140 570 Z"/>
+  </g>
+  <g transform="translate(180 460)">
+    <rect x="-30" y="0" width="60" height="280" fill="url(#ts_sky)"/>
+    <path d="M-30 0 Q0 -40 30 0 Z" fill="url(#ts_sky)"/>
+    <rect x="-40" y="-10" width="80" height="20" fill="#3a3328"/>
+    <rect x="-40" y="280" width="80" height="20" fill="#3a3328"/>
+    <line x1="0" y1="0" x2="0" y2="280" stroke="#3a3328" stroke-width="3"/>
+  </g>
+  <g transform="translate(1420 540)">
+    <rect x="-26" y="0" width="52" height="240" fill="url(#ts_sky)"/>
+    <path d="M-26 0 Q0 -34 26 0 Z" fill="url(#ts_sky)"/>
+    <rect x="-36" y="-8" width="72" height="18" fill="#3a3328"/>
+    <rect x="-36" y="240" width="72" height="18" fill="#3a3328"/>
+    <line x1="0" y1="0" x2="0" y2="240" stroke="#3a3328" stroke-width="3"/>
+  </g>
+  <g transform="translate(1280 380)">
+    <rect x="-10" y="0" width="20" height="160" fill="#5a3a18"/>
+    <ellipse cx="0" cy="-8" rx="36" ry="20" fill="#3a2a18"/>
+    <path d="M-26 -8 Q-18 -56 0 -82 Q18 -56 26 -8" fill="#ff8a3a" opacity="0.85"/>
+    <path d="M-14 -16 Q-8 -46 0 -64 Q8 -46 14 -16" fill="#ffd060"/>
+    <ellipse cx="0" cy="160" rx="50" ry="14" fill="#1a0e08" opacity="0.5"/>
+  </g>
+  <g stroke="#1a1410" stroke-width="2" fill="none" opacity="0.6">
+    <path d="M300 850 Q500 800 800 800"/>
+    <path d="M340 780 Q500 740 800 740"/>
+    <path d="M380 710 Q520 680 800 680"/>
+    <path d="M420 640 Q540 620 800 620"/>
+    <path d="M460 570 Q560 560 800 560"/>
+    <path d="M500 500 Q580 490 800 490"/>
+  </g>
+  <text x="1580" y="880" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="22" fill="rgba(255,255,255,0.4)">placeholder: castle_tower_stairs</text>
 </svg>

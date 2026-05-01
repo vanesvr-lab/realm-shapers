@@ -1,7 +1,73 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
-  <rect width="1600" height="900" fill="#7c8aa1"/>
-  <rect width="1600" height="640" fill="#a3a8b8" opacity="0.55"/>
-  <path d="M0,720 Q400,500 800,680 T1600,640 L1600,900 L0,900 Z" fill="#3a4150" opacity="0.8"/>
-  <path d="M0,800 Q400,720 800,820 T1600,760 L1600,900 L0,900 Z" fill="#5a6478" opacity="0.6"/>
+  <defs>
+    <linearGradient id="gh_floor" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#5a4f40"/>
+      <stop offset="1" stop-color="#2e2820"/>
+    </linearGradient>
+    <linearGradient id="gh_carpet" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#a3242b"/>
+      <stop offset="1" stop-color="#5a1218"/>
+    </linearGradient>
+    <linearGradient id="gh_wall" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#5a5246"/>
+      <stop offset="1" stop-color="#3a352c"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#gh_wall)"/>
+  <polygon points="0,0 1600,0 1300,300 300,300" fill="#2a261f"/>
+  <g stroke="#1a1814" stroke-width="3" fill="none">
+    <line x1="0" y1="0" x2="800" y2="220"/>
+    <line x1="200" y1="0" x2="800" y2="220"/>
+    <line x1="400" y1="0" x2="800" y2="220"/>
+    <line x1="600" y1="0" x2="800" y2="220"/>
+    <line x1="800" y1="0" x2="800" y2="220"/>
+    <line x1="1000" y1="0" x2="800" y2="220"/>
+    <line x1="1200" y1="0" x2="800" y2="220"/>
+    <line x1="1400" y1="0" x2="800" y2="220"/>
+    <line x1="1600" y1="0" x2="800" y2="220"/>
+  </g>
+  <polygon points="0,300 0,900 600,900 700,500 300,300" fill="#4a4036" opacity="0.85"/>
+  <polygon points="1600,300 1600,900 1000,900 900,500 1300,300" fill="#4a4036" opacity="0.85"/>
+  <g fill="#6b6357">
+    <rect x="120" y="280" width="80" height="500"/>
+    <ellipse cx="160" cy="270" rx="50" ry="14"/>
+    <ellipse cx="160" cy="780" rx="50" ry="14"/>
+    <rect x="320" y="320" width="60" height="430"/>
+    <ellipse cx="350" cy="312" rx="40" ry="10"/>
+    <ellipse cx="350" cy="750" rx="40" ry="10"/>
+    <rect x="480" y="350" width="44" height="370"/>
+    <rect x="1080" y="350" width="44" height="370"/>
+    <rect x="1220" y="320" width="60" height="430"/>
+    <ellipse cx="1250" cy="312" rx="40" ry="10"/>
+    <ellipse cx="1250" cy="750" rx="40" ry="10"/>
+    <rect x="1400" y="280" width="80" height="500"/>
+    <ellipse cx="1440" cy="270" rx="50" ry="14"/>
+    <ellipse cx="1440" cy="780" rx="50" ry="14"/>
+  </g>
+  <g>
+    <rect x="60" y="100" width="60" height="200" fill="#a3242b"/>
+    <polygon points="60,300 90,340 120,300" fill="#a3242b"/>
+    <polygon points="80,140 100,140 100,210 100,140 110,140 110,210" fill="#d4a83a"/>
+    <rect x="280" y="140" width="50" height="180" fill="#26527a"/>
+    <polygon points="280,320 305,355 330,320" fill="#26527a"/>
+    <rect x="1270" y="140" width="50" height="180" fill="#26527a"/>
+    <polygon points="1270,320 1295,355 1320,320" fill="#26527a"/>
+    <rect x="1480" y="100" width="60" height="200" fill="#a3242b"/>
+    <polygon points="1480,300 1510,340 1540,300" fill="#a3242b"/>
+    <polygon points="1500,140 1520,140 1520,210 1520,140 1530,140 1530,210" fill="#d4a83a"/>
+  </g>
+  <polygon points="700,500 900,500 1000,900 600,900" fill="url(#gh_carpet)"/>
+  <g stroke="#7a1218" stroke-width="2">
+    <line x1="700" y1="540" x2="900" y2="540"/>
+    <line x1="690" y1="600" x2="910" y2="600"/>
+    <line x1="675" y1="680" x2="925" y2="680"/>
+    <line x1="660" y1="760" x2="940" y2="760"/>
+    <line x1="640" y1="850" x2="960" y2="850"/>
+  </g>
+  <g transform="translate(800 470)">
+    <rect x="-60" y="-30" width="120" height="60" fill="#3a342a"/>
+    <rect x="-50" y="-50" width="100" height="20" fill="#5a4f40"/>
+    <polygon points="-30,-50 -10,-80 10,-80 30,-50" fill="#d4a83a" opacity="0.7"/>
+  </g>
   <text x="1580" y="880" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="22" fill="rgba(0,0,0,0.55)">placeholder: castle_great_hall</text>
 </svg>

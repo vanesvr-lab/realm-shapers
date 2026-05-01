@@ -1,7 +1,77 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
-  <rect width="1600" height="900" fill="#7c8aa1"/>
-  <rect width="1600" height="640" fill="#a3a8b8" opacity="0.55"/>
-  <polygon points="0,720 240,520 480,640 760,440 1040,580 1320,420 1600,560 1600,900 0,900" fill="#3a4150" opacity="0.85"/>
-  <polygon points="0,800 320,700 640,760 960,680 1280,740 1600,700 1600,900 0,900" fill="#5a6478" opacity="0.6"/>
-  <text x="1580" y="880" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="22" fill="rgba(0,0,0,0.55)">placeholder: castle_dungeon</text>
+  <defs>
+    <radialGradient id="dn_glow" cx="0.2" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#b8702e" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#1a1410" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="dn_glow_r" cx="0.85" cy="0.4" r="0.45">
+      <stop offset="0" stop-color="#a8581e" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#1a1410" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="900" fill="#1a1612"/>
+  <g fill="#2e2820" stroke="#0a0806" stroke-width="2">
+    <rect x="0" y="0" width="200" height="200"/>
+    <rect x="200" y="0" width="220" height="200"/>
+    <rect x="420" y="0" width="200" height="200"/>
+    <rect x="620" y="0" width="220" height="200"/>
+    <rect x="840" y="0" width="200" height="200"/>
+    <rect x="1040" y="0" width="220" height="200"/>
+    <rect x="1260" y="0" width="200" height="200"/>
+    <rect x="1460" y="0" width="200" height="200"/>
+    <rect x="0" y="200" width="240" height="200"/>
+    <rect x="240" y="200" width="200" height="200"/>
+    <rect x="440" y="200" width="220" height="200"/>
+    <rect x="660" y="200" width="200" height="200"/>
+    <rect x="860" y="200" width="240" height="200"/>
+    <rect x="1100" y="200" width="200" height="200"/>
+    <rect x="1300" y="200" width="220" height="200"/>
+    <rect x="1520" y="200" width="160" height="200"/>
+  </g>
+  <rect width="1600" height="900" fill="url(#dn_glow)"/>
+  <rect width="1600" height="900" fill="url(#dn_glow_r)"/>
+  <g stroke="#5e5246" stroke-width="14" fill="none">
+    <line x1="80" y1="0" x2="80" y2="900"/>
+    <line x1="200" y1="0" x2="200" y2="900"/>
+    <line x1="320" y1="0" x2="320" y2="900"/>
+    <line x1="440" y1="0" x2="440" y2="900"/>
+    <line x1="1160" y1="0" x2="1160" y2="900"/>
+    <line x1="1280" y1="0" x2="1280" y2="900"/>
+    <line x1="1400" y1="0" x2="1400" y2="900"/>
+    <line x1="1520" y1="0" x2="1520" y2="900"/>
+  </g>
+  <g stroke="#3a3328" stroke-width="6" fill="none">
+    <line x1="80" y1="60" x2="440" y2="60"/>
+    <line x1="80" y1="840" x2="440" y2="840"/>
+    <line x1="1160" y1="60" x2="1520" y2="60"/>
+    <line x1="1160" y1="840" x2="1520" y2="840"/>
+  </g>
+  <g stroke="#3a3328" stroke-width="3" fill="none" opacity="0.7">
+    <path d="M380 0 L380 200 L420 240 L420 300 L380 340 L420 380"/>
+    <path d="M1180 0 L1180 240 L1140 280 L1140 360 L1180 400 L1140 440"/>
+    <circle cx="380" cy="0" r="14"/>
+    <circle cx="1180" cy="0" r="14"/>
+  </g>
+  <g transform="translate(180 460)">
+    <rect x="-10" y="0" width="20" height="180" fill="#5a3a18"/>
+    <ellipse cx="0" cy="-10" rx="40" ry="22" fill="#3a2a18"/>
+    <path d="M-30 -10 Q-20 -60 0 -90 Q20 -60 30 -10" fill="#ff8a3a" opacity="0.85"/>
+    <path d="M-18 -20 Q-10 -50 0 -70 Q10 -50 18 -20" fill="#ffcc66"/>
+    <ellipse cx="0" cy="180" rx="60" ry="14" fill="#1a0e08" opacity="0.6"/>
+  </g>
+  <g transform="translate(1380 480)">
+    <rect x="-8" y="0" width="16" height="160" fill="#5a3a18"/>
+    <ellipse cx="0" cy="-8" rx="34" ry="18" fill="#3a2a18"/>
+    <path d="M-26 -8 Q-18 -50 0 -76 Q18 -50 26 -8" fill="#ff8a3a" opacity="0.85"/>
+    <path d="M-14 -16 Q-8 -42 0 -58 Q8 -42 14 -16" fill="#ffcc66"/>
+    <ellipse cx="0" cy="160" rx="50" ry="12" fill="#1a0e08" opacity="0.6"/>
+  </g>
+  <g fill="#3a3328">
+    <rect x="0" y="780" width="1600" height="120"/>
+    <line x1="0" y1="820" x2="1600" y2="820" stroke="#1a1410" stroke-width="2"/>
+    <line x1="0" y1="860" x2="1600" y2="860" stroke="#1a1410" stroke-width="2"/>
+  </g>
+  <ellipse cx="900" cy="850" rx="120" ry="16" fill="#26527a" opacity="0.6"/>
+  <ellipse cx="940" cy="848" rx="40" ry="6" fill="#5a8aaa" opacity="0.6"/>
+  <text x="1580" y="880" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="22" fill="rgba(255,255,255,0.45)">placeholder: castle_dungeon</text>
 </svg>

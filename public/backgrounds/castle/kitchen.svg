@@ -1,7 +1,84 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
-  <rect width="1600" height="900" fill="#7c8aa1"/>
-  <rect width="1600" height="640" fill="#a3a8b8" opacity="0.55"/>
-  <path d="M0,720 Q400,500 800,680 T1600,640 L1600,900 L0,900 Z" fill="#3a4150" opacity="0.8"/>
-  <path d="M0,800 Q400,720 800,820 T1600,760 L1600,900 L0,900 Z" fill="#5a6478" opacity="0.6"/>
+  <defs>
+    <linearGradient id="kt_wall" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#a8907a"/>
+      <stop offset="1" stop-color="#7a6852"/>
+    </linearGradient>
+    <radialGradient id="kt_fire" cx="0.5" cy="0.6" r="0.6">
+      <stop offset="0" stop-color="#fff5b8"/>
+      <stop offset="0.4" stop-color="#ff8a3a"/>
+      <stop offset="1" stop-color="#a3242b" stop-opacity="0.4"/>
+    </radialGradient>
+    <radialGradient id="kt_glow" cx="0.5" cy="0.4" r="0.7">
+      <stop offset="0" stop-color="#ffd896" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#kt_wall)"/>
+  <g fill="#5e5246" opacity="0.6">
+    <rect x="0" y="100" width="200" height="20"/>
+    <rect x="200" y="120" width="220" height="20"/>
+    <rect x="420" y="100" width="200" height="20"/>
+    <rect x="620" y="120" width="220" height="20"/>
+    <rect x="840" y="100" width="200" height="20"/>
+    <rect x="1040" y="120" width="220" height="20"/>
+    <rect x="1260" y="100" width="200" height="20"/>
+    <rect x="1460" y="120" width="200" height="20"/>
+  </g>
+  <g transform="translate(400 540)">
+    <rect x="-200" y="-160" width="400" height="320" fill="#5a4f3e"/>
+    <rect x="-220" y="-180" width="440" height="40" fill="#6e6353"/>
+    <path d="M-160 -120 L-160 60 L160 60 L160 -120 Z" fill="#1a1006"/>
+    <ellipse cx="0" cy="40" rx="160" ry="60" fill="url(#kt_fire)"/>
+    <path d="M-80 50 Q-60 -20 -30 -60 Q-10 -10 0 -40 Q10 0 30 -50 Q50 -10 80 50 Z" fill="#ff6b1f" opacity="0.85"/>
+    <path d="M-40 50 Q-20 -10 0 -30 Q20 -10 40 50 Z" fill="#ffd060"/>
+    <ellipse cx="0" cy="60" rx="120" ry="14" fill="#5a1818" opacity="0.6"/>
+    <rect x="-180" y="-220" width="360" height="40" fill="#3a3028"/>
+  </g>
+  <g transform="translate(400 100)">
+    <rect x="-30" y="-100" width="60" height="100" fill="#3a3028"/>
+    <path d="M-50 -100 Q0 -160 50 -100 Z" fill="#6e6353"/>
+  </g>
+  <g transform="translate(800 220)" stroke="#3a3028" stroke-width="3">
+    <line x1="0" y1="0" x2="0" y2="40"/>
+    <circle cx="0" cy="60" r="34" fill="#a3232b" stroke="#5a1218"/>
+    <circle cx="0" cy="60" r="22" fill="#1a0a0a"/>
+    <line x1="100" y1="0" x2="100" y2="50"/>
+    <ellipse cx="100" cy="70" rx="30" ry="20" fill="#7a4a26" stroke="#3a2418"/>
+    <line x1="200" y1="0" x2="200" y2="60"/>
+    <rect x="180" y="60" width="40" height="50" fill="#3a3028"/>
+    <line x1="-100" y1="0" x2="-100" y2="60"/>
+    <ellipse cx="-100" cy="80" rx="40" ry="22" fill="#5a3a18" stroke="#3a2418"/>
+    <line x1="-200" y1="0" x2="-200" y2="50"/>
+    <path d="M-220 50 L-180 50 L-200 110 Z" fill="#3a6a3e"/>
+    <line x1="-300" y1="0" x2="-300" y2="50"/>
+    <path d="M-320 50 L-280 50 L-300 110 Z" fill="#3a6a3e"/>
+  </g>
+  <g transform="translate(1100 660)">
+    <rect x="-180" y="-40" width="360" height="120" fill="#7a5a3a"/>
+    <rect x="-180" y="-50" width="360" height="14" fill="#a3784e"/>
+    <rect x="-160" y="80" width="20" height="100" fill="#5a3a18"/>
+    <rect x="140" y="80" width="20" height="100" fill="#5a3a18"/>
+    <ellipse cx="-100" cy="-60" rx="36" ry="20" fill="#d4b890"/>
+    <ellipse cx="-100" cy="-66" rx="22" ry="6" fill="#a3884f"/>
+    <rect x="0" y="-70" width="60" height="20" fill="#3a3028"/>
+    <ellipse cx="30" cy="-80" rx="8" ry="14" fill="#5a4030"/>
+    <rect x="100" y="-50" width="60" height="14" fill="#5a3a18"/>
+    <rect x="120" y="-44" width="40" height="8" fill="#7a5a3a"/>
+  </g>
+  <g transform="translate(1400 760)">
+    <path d="M-40 0 Q-50 -60 -30 -100 L30 -100 Q50 -60 40 0 Z" fill="#c8a878"/>
+    <ellipse cx="0" cy="-100" rx="30" ry="8" fill="#a8885e"/>
+    <text x="0" y="-50" text-anchor="middle" font-family="serif" font-size="22" fill="#5a4030" opacity="0.5">flour</text>
+  </g>
+  <g transform="translate(1280 720)">
+    <path d="M-40 0 Q-50 -50 -30 -90 L30 -90 Q50 -50 40 0 Z" fill="#c8a878"/>
+    <ellipse cx="0" cy="-90" rx="30" ry="8" fill="#a8885e"/>
+  </g>
+  <rect width="1600" height="900" fill="url(#kt_glow)"/>
+  <g fill="#7a5a3a">
+    <rect x="0" y="780" width="1600" height="120"/>
+    <line x1="0" y1="820" x2="1600" y2="820" stroke="#3a2418" stroke-width="2"/>
+  </g>
   <text x="1580" y="880" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="22" fill="rgba(0,0,0,0.55)">placeholder: castle_kitchen</text>
 </svg>

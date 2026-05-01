@@ -1,9 +1,71 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
-  <rect width="1600" height="900" fill="#7c8aa1"/>
-  <rect width="1600" height="640" fill="#a3a8b8" opacity="0.55"/>
-  <rect x="200" y="380" width="180" height="380" fill="#3a4150"/>
-  <rect x="500" y="280" width="220" height="480" fill="#5a6478" opacity="0.85"/>
-  <rect x="900" y="340" width="200" height="420" fill="#3a4150"/>
-  <rect x="1240" y="240" width="220" height="520" fill="#5a6478" opacity="0.85"/>
+  <defs>
+    <linearGradient id="cy_sky" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#bcd6ea"/>
+      <stop offset="1" stop-color="#f0d8b4"/>
+    </linearGradient>
+    <radialGradient id="cy_water" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#7ab2cf"/>
+      <stop offset="1" stop-color="#3a6a8a"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#cy_sky)"/>
+  <g fill="#7a7060" opacity="0.85">
+    <rect x="0" y="240" width="220" height="380"/>
+    <polygon points="0,240 110,170 220,240"/>
+    <rect x="60" y="320" width="40" height="80" fill="#3a342a"/>
+    <rect x="130" y="320" width="40" height="80" fill="#3a342a"/>
+    <rect x="60" y="440" width="40" height="80" fill="#3a342a"/>
+    <rect x="130" y="440" width="40" height="80" fill="#3a342a"/>
+    <rect x="1380" y="240" width="220" height="380"/>
+    <polygon points="1380,240 1490,170 1600,240"/>
+    <rect x="1440" y="320" width="40" height="80" fill="#3a342a"/>
+    <rect x="1510" y="320" width="40" height="80" fill="#3a342a"/>
+    <rect x="1440" y="440" width="40" height="80" fill="#3a342a"/>
+    <rect x="1510" y="440" width="40" height="80" fill="#3a342a"/>
+  </g>
+  <g fill="#5e5648" opacity="0.7">
+    <rect x="380" y="180" width="60" height="280"/>
+    <polygon points="380,180 410,120 440,180"/>
+    <rect x="1160" y="180" width="60" height="280"/>
+    <polygon points="1160,180 1190,120 1220,180"/>
+    <rect x="540" y="220" width="40" height="240"/>
+    <polygon points="540,220 560,170 580,220"/>
+    <rect x="1020" y="220" width="40" height="240"/>
+    <polygon points="1020,220 1040,170 1060,220"/>
+  </g>
+  <ellipse cx="800" cy="700" rx="900" ry="60" fill="#6b6357" opacity="0.6"/>
+  <g transform="translate(800 600)">
+    <ellipse cx="0" cy="80" rx="220" ry="38" fill="#5a5246"/>
+    <ellipse cx="0" cy="60" rx="200" ry="30" fill="url(#cy_water)"/>
+    <rect x="-30" y="-80" width="60" height="120" fill="#7a7060"/>
+    <ellipse cx="0" cy="-90" rx="50" ry="14" fill="#a3998b"/>
+    <ellipse cx="0" cy="-92" rx="42" ry="10" fill="url(#cy_water)"/>
+    <path d="M0 -94 Q-6 -120 0 -130 Q6 -120 0 -94" fill="#7ab2cf" opacity="0.85"/>
+  </g>
+  <g fill="#4a3920">
+    <rect x="1340" y="540" width="40" height="200"/>
+    <circle cx="1360" cy="500" r="60" fill="#3a6a3e"/>
+    <circle cx="1320" cy="520" r="55" fill="#4a7a3e"/>
+    <circle cx="1400" cy="510" r="55" fill="#3a6a3e"/>
+    <circle cx="1300" cy="490" r="14" fill="#e87090"/>
+    <circle cx="1390" cy="470" r="14" fill="#e87090"/>
+    <circle cx="1350" cy="540" r="14" fill="#f0a8b8"/>
+    <circle cx="1420" cy="540" r="14" fill="#e87090"/>
+  </g>
+  <g fill="#9a8e78" stroke="#5e5648" stroke-width="2">
+    <path d="M0 740 L1600 740 L1600 900 L0 900 Z" fill="#9a8e78"/>
+    <line x1="0" y1="780" x2="1600" y2="780"/>
+    <line x1="0" y1="830" x2="1600" y2="830"/>
+    <line x1="0" y1="880" x2="1600" y2="880"/>
+    <line x1="120" y1="740" x2="120" y2="780"/>
+    <line x1="320" y1="780" x2="320" y2="830"/>
+    <line x1="520" y1="740" x2="520" y2="780"/>
+    <line x1="720" y1="830" x2="720" y2="880"/>
+    <line x1="920" y1="740" x2="920" y2="780"/>
+    <line x1="1120" y1="780" x2="1120" y2="830"/>
+    <line x1="1320" y1="740" x2="1320" y2="780"/>
+    <line x1="1480" y1="830" x2="1480" y2="880"/>
+  </g>
   <text x="1580" y="880" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="22" fill="rgba(0,0,0,0.55)">placeholder: castle_courtyard</text>
 </svg>

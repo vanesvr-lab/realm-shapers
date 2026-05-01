@@ -1,9 +1,63 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
-  <rect width="1600" height="900" fill="#7c8aa1"/>
-  <rect width="1600" height="640" fill="#a3a8b8" opacity="0.55"/>
-  <rect x="200" y="380" width="180" height="380" fill="#3a4150"/>
-  <rect x="500" y="280" width="220" height="480" fill="#5a6478" opacity="0.85"/>
-  <rect x="900" y="340" width="200" height="420" fill="#3a4150"/>
-  <rect x="1240" y="240" width="220" height="520" fill="#5a6478" opacity="0.85"/>
+  <defs>
+    <linearGradient id="tr_wall" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#5a4f3e"/>
+      <stop offset="1" stop-color="#3a3328"/>
+    </linearGradient>
+    <linearGradient id="tr_glass_blue" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#6aa8d4"/>
+      <stop offset="1" stop-color="#3a6a9a"/>
+    </linearGradient>
+    <linearGradient id="tr_glass_red" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#e85a3a"/>
+      <stop offset="1" stop-color="#a3242b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#tr_wall)"/>
+  <g transform="translate(800 360)">
+    <ellipse cx="0" cy="0" rx="260" ry="320" fill="#1a1814"/>
+    <ellipse cx="0" cy="0" rx="240" ry="300" fill="url(#tr_glass_blue)"/>
+    <path d="M-240 0 L240 0" stroke="#1a1814" stroke-width="6"/>
+    <path d="M0 -300 L0 300" stroke="#1a1814" stroke-width="6"/>
+    <path d="M-160 -240 L160 240" stroke="#1a1814" stroke-width="3" opacity="0.6"/>
+    <path d="M160 -240 L-160 240" stroke="#1a1814" stroke-width="3" opacity="0.6"/>
+    <circle cx="0" cy="0" r="80" fill="url(#tr_glass_red)"/>
+    <polygon points="0,-50 12,-18 46,-18 18,4 30,38 0,18 -30,38 -18,4 -46,-18 -12,-18" fill="#f4d860"/>
+  </g>
+  <g>
+    <rect x="380" y="80" width="120" height="380" fill="#a3242b"/>
+    <polygon points="380,460 440,540 500,460" fill="#a3242b"/>
+    <polygon points="410,160 430,160 430,260 470,260 470,160 490,160 490,300 410,300" fill="#d4a83a" opacity="0.85"/>
+    <rect x="1100" y="80" width="120" height="380" fill="#26527a"/>
+    <polygon points="1100,460 1160,540 1220,460" fill="#26527a"/>
+    <circle cx="1160" cy="220" r="46" fill="#d4a83a" opacity="0.85"/>
+  </g>
+  <g transform="translate(800 720)">
+    <rect x="-200" y="-160" width="400" height="200" fill="#5a3318"/>
+    <rect x="-200" y="-160" width="400" height="40" fill="#7a4a26"/>
+    <rect x="-220" y="-180" width="440" height="30" fill="#d4a83a"/>
+    <rect x="-180" y="-260" width="60" height="120" fill="#5a3318"/>
+    <rect x="120" y="-260" width="60" height="120" fill="#5a3318"/>
+    <polygon points="-180,-260 -150,-300 -120,-260" fill="#d4a83a"/>
+    <polygon points="120,-260 150,-300 180,-260" fill="#d4a83a"/>
+    <rect x="-160" y="-100" width="320" height="80" fill="#a3242b"/>
+    <rect x="-130" y="-30" width="260" height="20" fill="#3a2a18"/>
+  </g>
+  <g transform="translate(800 540)">
+    <polygon points="-80,-30 -60,-60 -40,-30 -20,-60 0,-30 20,-60 40,-30 60,-60 80,-30 80,0 -80,0" fill="#f4c842"/>
+    <circle cx="-60" cy="-50" r="8" fill="#e85a3a"/>
+    <circle cx="0" cy="-50" r="8" fill="#3a6a9a"/>
+    <circle cx="60" cy="-50" r="8" fill="#3a8a4a"/>
+  </g>
+  <g fill="#3a352c">
+    <rect x="0" y="780" width="1600" height="120"/>
+    <rect x="80" y="780" width="200" height="60" fill="#5a4f3e"/>
+    <rect x="320" y="780" width="200" height="60" fill="#4a4036"/>
+    <rect x="560" y="780" width="200" height="60" fill="#5a4f3e"/>
+    <rect x="800" y="780" width="200" height="60" fill="#4a4036"/>
+    <rect x="1040" y="780" width="200" height="60" fill="#5a4f3e"/>
+    <rect x="1280" y="780" width="200" height="60" fill="#4a4036"/>
+    <rect x="1520" y="780" width="80" height="60" fill="#5a4f3e"/>
+  </g>
   <text x="1580" y="880" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="22" fill="rgba(0,0,0,0.55)">placeholder: castle_throne_room</text>
 </svg>

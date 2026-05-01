@@ -1,7 +1,81 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
-  <rect width="1600" height="900" fill="#7c8aa1"/>
-  <rect width="1600" height="640" fill="#a3a8b8" opacity="0.55"/>
-  <polygon points="0,720 240,520 480,640 760,440 1040,580 1320,420 1600,560 1600,900 0,900" fill="#3a4150" opacity="0.85"/>
-  <polygon points="0,800 320,700 640,760 960,680 1280,740 1600,700 1600,900 0,900" fill="#5a6478" opacity="0.6"/>
-  <text x="1580" y="880" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="22" fill="rgba(0,0,0,0.55)">placeholder: castle_ancient_crypt</text>
+  <defs>
+    <radialGradient id="ac_shaft" cx="0.5" cy="0" r="0.6">
+      <stop offset="0" stop-color="#fdf6c8" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#fdf6c8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ac_dark" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#2a261f"/>
+      <stop offset="1" stop-color="#1a1610"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#ac_dark)"/>
+  <g fill="#3a342c" stroke="#1a1410" stroke-width="2" opacity="0.7">
+    <rect x="0" y="0" width="200" height="200"/>
+    <rect x="200" y="0" width="220" height="200"/>
+    <rect x="420" y="0" width="200" height="200"/>
+    <rect x="620" y="0" width="220" height="200"/>
+    <rect x="840" y="0" width="200" height="200"/>
+    <rect x="1040" y="0" width="220" height="200"/>
+    <rect x="1260" y="0" width="200" height="200"/>
+    <rect x="1460" y="0" width="200" height="200"/>
+    <rect x="0" y="200" width="240" height="200"/>
+    <rect x="240" y="200" width="200" height="200"/>
+    <rect x="440" y="200" width="220" height="200"/>
+    <rect x="660" y="200" width="200" height="200"/>
+    <rect x="860" y="200" width="240" height="200"/>
+    <rect x="1100" y="200" width="200" height="200"/>
+    <rect x="1300" y="200" width="220" height="200"/>
+    <rect x="1520" y="200" width="160" height="200"/>
+  </g>
+  <polygon points="700,0 900,0 1100,400 500,400" fill="url(#ac_shaft)"/>
+  <ellipse cx="800" cy="420" rx="120" ry="20" fill="#fdf6c8" opacity="0.3"/>
+  <g transform="translate(280 700)">
+    <rect x="-160" y="-100" width="320" height="160" rx="6" fill="#5a5246"/>
+    <rect x="-180" y="-110" width="360" height="20" rx="4" fill="#7a7060"/>
+    <rect x="-180" y="60" width="360" height="20" rx="4" fill="#3a342a"/>
+    <ellipse cx="0" cy="-60" rx="60" ry="14" fill="#3a342a"/>
+    <text x="0" y="-50" text-anchor="middle" font-family="serif" font-size="20" fill="#1a1410">+</text>
+  </g>
+  <g transform="translate(800 760)">
+    <rect x="-180" y="-100" width="360" height="160" rx="6" fill="#5e5246"/>
+    <rect x="-200" y="-110" width="400" height="20" rx="4" fill="#7e7268"/>
+    <rect x="-200" y="60" width="400" height="20" rx="4" fill="#3a3328"/>
+    <ellipse cx="0" cy="-60" rx="60" ry="14" fill="#3a3328"/>
+    <text x="0" y="-50" text-anchor="middle" font-family="serif" font-size="22" fill="#1a1410">+</text>
+  </g>
+  <g transform="translate(1320 700)">
+    <rect x="-160" y="-100" width="320" height="160" rx="6" fill="#5a5246"/>
+    <rect x="-180" y="-110" width="360" height="20" rx="4" fill="#7a7060"/>
+    <rect x="-180" y="60" width="360" height="20" rx="4" fill="#3a342a"/>
+    <ellipse cx="0" cy="-60" rx="60" ry="14" fill="#3a342a"/>
+    <text x="0" y="-50" text-anchor="middle" font-family="serif" font-size="20" fill="#1a1410">+</text>
+  </g>
+  <g transform="translate(120 480)">
+    <rect x="-6" y="-40" width="12" height="40" fill="#fdf6d0"/>
+    <ellipse cx="0" cy="0" rx="14" ry="6" fill="#a8884e"/>
+    <path d="M-3 -42 Q0 -56 3 -42" fill="#ff8a3a"/>
+  </g>
+  <g transform="translate(1480 500)">
+    <rect x="-6" y="-32" width="12" height="32" fill="#fdf6d0"/>
+    <ellipse cx="0" cy="0" rx="12" ry="6" fill="#a8884e"/>
+    <path d="M-3 -34 Q0 -46 3 -34" fill="#ff8a3a"/>
+  </g>
+  <g transform="translate(800 520)">
+    <ellipse cx="0" cy="80" rx="80" ry="14" fill="#1a1410" opacity="0.5"/>
+    <ellipse cx="0" cy="40" rx="32" ry="40" fill="#e8e0d0"/>
+    <ellipse cx="-12" cy="30" rx="6" ry="8" fill="#1a1410"/>
+    <ellipse cx="12" cy="30" rx="6" ry="8" fill="#1a1410"/>
+    <path d="M-12 56 Q0 60 12 56" stroke="#1a1410" stroke-width="2" fill="none"/>
+    <line x1="-10" y1="50" x2="-6" y2="50" stroke="#1a1410" stroke-width="1"/>
+    <line x1="-2" y1="50" x2="2" y2="50" stroke="#1a1410" stroke-width="1"/>
+    <line x1="6" y1="50" x2="10" y2="50" stroke="#1a1410" stroke-width="1"/>
+  </g>
+  <g stroke="#a8a098" stroke-width="1" fill="none" opacity="0.5">
+    <path d="M0 0 L80 60 L40 100 L120 80"/>
+    <path d="M40 100 L80 140"/>
+    <path d="M1600 0 L1520 60 L1560 100 L1480 80"/>
+    <path d="M1560 100 L1520 140"/>
+  </g>
+  <text x="1580" y="880" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="22" fill="rgba(255,255,255,0.45)">placeholder: castle_ancient_crypt</text>
 </svg>

@@ -1,8 +1,74 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
-  <rect width="1600" height="900" fill="#7c8aa1"/>
-  <rect width="1600" height="640" fill="#a3a8b8" opacity="0.55"/>
-  <polygon points="0,600 400,420 760,540 1080,360 1400,520 1600,460 1600,900 0,900" fill="#3a4150" opacity="0.85"/>
-  <circle cx="320" cy="240" r="60" fill="#a3a8b8" opacity="0.6"/>
-  <circle cx="1180" cy="200" r="44" fill="#a3a8b8" opacity="0.5"/>
-  <text x="1580" y="880" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="22" fill="rgba(0,0,0,0.55)">placeholder: castle_dragons_lair</text>
+  <defs>
+    <radialGradient id="dl_glow" cx="0.5" cy="0.7" r="0.7">
+      <stop offset="0" stop-color="#f4a838" stop-opacity="0.7"/>
+      <stop offset="0.6" stop-color="#a3242b" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#1a0606" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="dl_cave" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#1a0606"/>
+      <stop offset="1" stop-color="#3a1818"/>
+    </linearGradient>
+    <linearGradient id="dl_gold" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#fde078"/>
+      <stop offset="1" stop-color="#a87a18"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#dl_cave)"/>
+  <ellipse cx="800" cy="900" rx="900" ry="500" fill="#3a2018"/>
+  <path d="M0 400 Q200 200 400 400 Q600 220 800 400 Q1000 220 1200 400 Q1400 200 1600 400 L1600 0 L0 0 Z" fill="#2a1010"/>
+  <path d="M0 880 Q200 700 400 880 Q600 720 800 880 Q1000 720 1200 880 Q1400 700 1600 880 L1600 900 L0 900 Z" fill="#2a1010"/>
+  <ellipse cx="800" cy="600" rx="700" ry="280" fill="url(#dl_glow)"/>
+  <g fill="url(#dl_gold)" opacity="0.95">
+    <ellipse cx="500" cy="780" rx="280" ry="60"/>
+    <ellipse cx="1100" cy="780" rx="320" ry="68"/>
+    <ellipse cx="800" cy="820" rx="500" ry="50"/>
+  </g>
+  <g fill="#f4c842">
+    <circle cx="380" cy="760" r="14"/>
+    <circle cx="420" cy="780" r="12"/>
+    <circle cx="470" cy="760" r="14"/>
+    <circle cx="520" cy="790" r="14"/>
+    <circle cx="580" cy="760" r="12"/>
+    <circle cx="640" cy="780" r="14"/>
+    <circle cx="940" cy="780" r="14"/>
+    <circle cx="1000" cy="760" r="14"/>
+    <circle cx="1060" cy="790" r="12"/>
+    <circle cx="1120" cy="760" r="14"/>
+    <circle cx="1180" cy="780" r="14"/>
+    <circle cx="1240" cy="760" r="12"/>
+    <circle cx="800" cy="850" r="12"/>
+    <circle cx="700" cy="850" r="14"/>
+    <circle cx="900" cy="850" r="14"/>
+    <ellipse cx="600" cy="800" rx="20" ry="8"/>
+    <ellipse cx="1000" cy="810" rx="22" ry="8"/>
+  </g>
+  <g transform="translate(1100 600)" fill="#5a2030" opacity="0.85">
+    <ellipse cx="0" cy="0" rx="280" ry="120"/>
+    <path d="M-280 -20 Q-300 -100 -200 -130 Q-100 -180 0 -150 Q120 -180 220 -130 Q300 -100 280 -20 Z"/>
+    <path d="M-260 -20 Q-280 -90 -180 -110 L-100 -90 L-100 -20 Z" fill="#7a2840"/>
+    <ellipse cx="-220" cy="-60" rx="60" ry="40" fill="#3a1018"/>
+    <ellipse cx="-240" cy="-70" rx="14" ry="10" fill="#f4d860"/>
+    <ellipse cx="-200" cy="-65" rx="14" ry="10" fill="#f4d860"/>
+    <ellipse cx="-238" cy="-72" rx="3" ry="6" fill="#1a0606"/>
+    <ellipse cx="-202" cy="-67" rx="3" ry="6" fill="#1a0606"/>
+    <path d="M-160 -90 Q-140 -120 -110 -100" stroke="#3a1018" stroke-width="6" fill="none"/>
+    <path d="M-130 -110 Q-100 -140 -70 -110" stroke="#3a1018" stroke-width="6" fill="none"/>
+  </g>
+  <g fill="#a85040" opacity="0.7">
+    <ellipse cx="220" cy="700" rx="14" ry="6" transform="rotate(20 220 700)"/>
+    <ellipse cx="260" cy="720" rx="14" ry="6" transform="rotate(-30 260 720)"/>
+    <ellipse cx="320" cy="700" rx="14" ry="6" transform="rotate(45 320 700)"/>
+    <ellipse cx="1380" cy="720" rx="14" ry="6" transform="rotate(-20 1380 720)"/>
+    <ellipse cx="1420" cy="700" rx="14" ry="6" transform="rotate(40 1420 700)"/>
+  </g>
+  <g fill="#1a0606">
+    <polygon points="0,400 60,330 120,400"/>
+    <polygon points="180,400 240,340 300,400"/>
+    <polygon points="380,420 440,360 500,420"/>
+    <polygon points="1100,420 1160,360 1220,420"/>
+    <polygon points="1300,400 1360,340 1420,400"/>
+    <polygon points="1480,400 1540,330 1600,400"/>
+  </g>
+  <text x="1580" y="880" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="22" fill="rgba(255,255,255,0.45)">placeholder: castle_dragons_lair</text>
 </svg>

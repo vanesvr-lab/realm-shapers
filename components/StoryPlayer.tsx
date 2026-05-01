@@ -250,6 +250,12 @@ export function StoryPlayer({
   // apply level-tier flags from builds-catalog.consume_level_flags.
   const [builderXp, setBuilderXp] = useState(0);
   const [builtLevels, setBuiltLevels] = useState<Record<string, number>>({});
+  // B-020: which low-supply nudges have already been spoken this run.
+  // Each entry is a counter id ("food" / "water"). Resets on Play Again
+  // via the existing key-driven remount.
+  const [firedWarnings, setFiredWarnings] = useState<Set<string>>(
+    () => new Set()
+  );
   // B-013: entry video state for sub-scenes that carry an entry_video_path.
   // "playing" → render <video> on top; "ended" → static image only.
   // Plays once per (world_id, scene_id), gated by sessionStorage so back-and-forth
@@ -454,6 +460,36 @@ export function StoryPlayer({
     });
     return unsubscribe;
   }, []);
+
+  // B-020: low-supply warnings. When the food or water counter dips to
+  // 2 or below for the first time this run, fire a one-time Oracle hint
+  // pointing the kid at the Supreme Shop. firedWarnings tracks which
+  // counters have already nudged so the same warning never fires twice
+  // in a run. Resets via the playthrough remount on Play Again.
+  useEffect(() => {
+    if (!counters || !counterDefs) return;
+    const checkCounter = (id: string, copy: string) => {
+      const def = counterDefs.find((d) => d.id === id);
+      if (!def) return;
+      const value = counters[id] ?? def.start_at ?? def.max;
+      if (value > 2) return;
+      if (firedWarnings.has(id)) return;
+      speakOracle({ text: copy, kind: "hint" });
+      setFiredWarnings((s) => {
+        const next = new Set(s);
+        next.add(id);
+        return next;
+      });
+    };
+    checkCounter(
+      "food",
+      "Your food is almost gone. Buy more at the Supreme Shop, or hunt an animal along the way."
+    );
+    checkCounter(
+      "water",
+      "Your water is almost gone. Buy more at the Supreme Shop, or find a stream."
+    );
+  }, [counters, counterDefs, firedWarnings]);
 
   // B-013 entry video gate. Each scene change re-checks: does this scene have
   // an entry video AND has it not played yet in this session for this world?

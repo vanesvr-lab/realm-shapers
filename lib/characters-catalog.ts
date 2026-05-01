@@ -33,7 +33,7 @@ export const CHARACTERS: Character[] = [
     id: "wizard",
     label: "Wizard",
     description: "starry robes, owl friend, big book of spells",
-    thumbnail_path: "/characters/wizard.webp",
+    thumbnail_path: "/characters/wizard.png",
     theme_fit: ["castle", "forest", "space"],
     voice: "Fena",
   },

@@ -15,6 +15,38 @@
 
 ---
 
+## B-016 — 2026-05-01 — CLI
+**Touched:**
+- lib/asset-library.ts (CHARACTERS gains a gingerbread_kid entry: prompt "a friendly gingerbread kid with white icing buttons, a candy belt, and a warm cinnamon smile" plus the shared STYLE_SUFFIX. No other catalog changes).
+- lib/asset-files.generated.ts (manifest now records gingerbread_kid: png).
+- lib/characters-catalog.ts (knight, princess, astronaut, merkid, gingerbread_kid, robot, dragon thumbnail_path swapped from /characters/<id>.svg to /characters/<id>.png. Wizard already on .png).
+- scripts/remove-character-bgs.ts (rewritten as a generalization of the wizard one-off. Now dual-writes transparent pngs to /public/assets/characters/<library_id>.png and /public/characters/<picker_id>.png. Adds an explicit PICKER_TO_LIBRARY alias map (only entry: merkid -> mermaid). Default target list trimmed to the 7 picker characters that needed real art; wizard excluded by default but accepted explicitly).
+- public/assets/characters/gingerbread_kid.png (new, 561 KB transparent png from Flux Schnell + bg removal).
+- public/characters/{knight,princess,astronaut,merkid,gingerbread_kid,robot,dragon}.png (new picker mirrors, 490-740 KB each).
+- public/characters/{knight,princess,astronaut,merkid,gingerbread_kid,robot,dragon}.svg deleted (placeholder circles, no longer referenced).
+- public/characters/wizard.svg.bak deleted (B-015 leftover).
+- MORNING_CHECKLIST_016.md (new), CHANGES.md.
+
+**State:** Built and deployed to https://realm-shapers.vercel.app. Two clean commits on `main` (484c95a, 69ef5f6 plus this CHANGES + checklist push). `npx tsc --noEmit` clean, `npm run lint` clean (0 warnings, 0 errors), validator prints `registry OK`, `npm run build` clean. /play first-load JS unchanged at 252 kB. **Smoke tests pending Vanessa AM verification per `MORNING_CHECKLIST_016.md`** — agent did not click through any browser flow but did visually inspect the gingerbread_kid PNG (pre and post bg removal) and confirmed it matches the watercolor style.
+
+How the wiring works:
+1. The picker (lib/characters-catalog.ts) and the in-game HeroAvatar (lib/asset-files.generated.ts -> /public/assets/characters/) live in two separate paths. Wizard already had real art at both. The other 7 had real art only in the asset library; the picker side was placeholder SVG circles.
+2. gingerbread_kid was the only one missing from the asset library entirely. Generated via Flux Schnell (`npx tsx --env-file=.env.local scripts/generate-assets.ts --only gingerbread_kid`), then bg-removed in the next step.
+3. The bg-removal script's PICKER_TO_LIBRARY map is the explicit alias layer. Today the only real alias is merkid -> mermaid. Future picker additions follow the same shape.
+4. Re-running the bg-removal script for already-bg-removed characters is a no-op at the byte level (bg-remover is deterministic). Git correctly reported the asset-library files as unchanged.
+
+**Open:**
+- **Picker tiles vary slightly in pose and crop** because the 8 PNGs come from different Flux runs. Layout-wise they all sit inside the same 1:1 tile, but visually the figures are not perfectly uniform in scale or stance. Acceptable; the wizard set the precedent and Vanessa accepted that pattern.
+- **Mer-kid uses the mermaid art** (no dedicated merkid source). Library alias works fine; the picker label says "Mer-Kid" but the underlying figure is the standard mermaid render. Same as before B-016.
+- **No browser smoke test by agent.** The 8 picker tiles render real PNGs in production per the build output, but a kid-facing visual sanity check is a Vanessa AM task.
+- **Idempotent bg-removal re-ran 6 characters whose output was unchanged.** Cost about $0.03 in Replicate credits and ~12s of API time. Future runs can pass an explicit subset to avoid this.
+
+**Next session:** If a tile looks wrong, regen path is in `MORNING_CHECKLIST_016.md` (per-character `generate-assets.ts --only <library_id> --force` + `remove-character-bgs.ts <picker_id>` + `sync-asset-files.ts`). For an alias like merkid you regen `mermaid` on the library side and `merkid` on the picker side. Rollback is `git revert 69ef5f6 484c95a` + redeploy.
+
+**Pushed:** yes (69ef5f6 plus the CHANGES + checklist commit to follow)
+
+---
+
 ## B-015 — 2026-05-01 — CLI
 **Touched:**
 - lib/claude.ts (StoryScene gains optional `entry_video_path: string`. Adventure scenes set this to a direct path under /public/. Theme-catalog scenes keep relying on SubScene.entry_video_path).

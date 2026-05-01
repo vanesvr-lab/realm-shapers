@@ -15,6 +15,47 @@
 
 ---
 
+## B-014 — 2026-05-01 — CLI
+**Touched:**
+- lib/pickups-catalog.ts (Pickup type gains optional `coin_value`. New entries: coin_pouch (50), treasure_chest (150), rare_gem (200), glowstone (no coin_value, narration-only)).
+- lib/claude.ts (StoryChoice gains optional `coin_cost`, `grants_counter`, `consumes_counter`. All optional; absent on Claude-generated trees so existing flow keeps parsing).
+- lib/counters.ts (CounterDef gains optional `start_at`. initialCounters seeds from start_at when set, falling back to max).
+- lib/adventures/hunt-dragon-egg.ts (8 new scenes: wolf_encounter, waterfall_climb, eagle_nest, bone_field, crystal_chamber, dragon_cubs, shrine, thief_encounter. New ending_blessed scene + endings entry below ending_friend. New flags: blessing, robbed. Coins counter (max 9999, start_at 50, critical_at 0). Existing scenes rewired: cliff_climb -> wolf_encounter, riverbank gains waterfall + fisher market + river-pony mount, volcano_base gains bone_field, ash_road forwards to dragon_cubs and gains lizard mount + thief, cave_shortcut forwards to dragon_cubs and gains crystal_chamber + lullaby market, lava_chamber forwards to dragon_cubs, forest_path gains shrine. Dragon_chamber narration_variants now react to blessing flag and to has_glowstone derived flag).
+- lib/adventures/index.ts (Validator now checks coin_cost requires a coins counter to exist, and grants_counter / consumes_counter only reference declared counter ids).
+- lib/sound-bus.ts (new — synthesizes a quick two-tone Web Audio coin chime via OscillatorNode; lazy AudioContext, session-scoped mute key, all errors swallowed).
+- components/StoryPlayer.tsx (pickup() awards coin_value to coins counter and chings on treasure pickups. tryActivate() gates on coin_cost like requires, applies consumes_counter then grants_counter on fire, chings if coin counter moved. CHOICE_POSITIONS expanded to 6 slots for the new market+mount-laden riverbank. mergedFlags adds inventory-derived has_<id> booleans so narration variants can key on inventory. Choice tooltip surfaces price hint when coin-short. EconomySummary computed at completion time and threaded through CompletionPayload).
+- components/CounterBar.tsx (text display for counters with max>50 so the coins counter renders as "Coins: N" instead of 9999 pips).
+- components/RealmCard.tsx (renders the optional EconomySummary as three short lines below the ingredients grid: ending tier label, coins earned/remaining, trophies list).
+- app/play/PlayClient.tsx (threads EconomySummary from StoryPlayer through to RealmCard. Hydration fallback for missing counter ids now respects start_at).
+- scripts/hunt-dragon-egg-prompts.ts (12 new prompts: 8 scenes + 4 pickup icons).
+- public/adventures/hunt-dragon-egg/{wolf_encounter,waterfall_climb,eagle_nest,bone_field,crystal_chamber,dragon_cubs,shrine,thief_encounter}.webp (8 new generated via Replicate).
+- public/pickups/{coin_pouch,treasure_chest,rare_gem,glowstone}.webp (4 new generated via Replicate).
+- MORNING_CHECKLIST_014.md (new), CHANGES.md.
+
+**State:** Built and deployed to https://realm-shapers.vercel.app. Six clean commits on `main` (29b462f, 08f07a6, f144cca, 4859f41, 5e2db91 plus this CHANGES + checklist push). `npx tsc --noEmit` clean, `npm run lint` clean (0 warnings, 0 errors), validator prints `registry OK`, `npm run build` clean. /play first-load JS at 252 kB (+5 kB from B-013, covers sound-bus + economy plumbing + 8 new scene definitions). **Smoke tests pending Vanessa AM verification per `MORNING_CHECKLIST_014.md`** — agent did not click through any browser flow.
+
+How the scopes connect end-to-end:
+1. Schema additions in lib/claude.ts (coin_cost, grants_counter, consumes_counter on StoryChoice) plus coin_value on Pickup. All optional; Claude-generated trees ignore them and keep parsing.
+2. Coins counter has start_at: 50 so kids begin with a small buffer. CounterBar switches to text rendering when max>50, hiding the impossibly long pip row 9999 would cause.
+3. Sound bus is a tiny lazy-initialized Web Audio chime (no audio file). Honors a sessionStorage mute key. All errors swallowed silently.
+4. Eight new scenes plus the existing rewires give the kid 4-5 ways to earn coins (treasure pickups, eagle nest, bone field, waterfall) and 4 ways to spend (shrine, fisher market, hermit market, mounts, thief toll). Mounts are coin-gated express paths (200 coins each) that skip the harder challenges; markets are coin-for-resource trades.
+5. The thief on ash_road is the only scene that drains coins involuntarily (or via the run-and-drop choice).
+6. dragon_cubs is the new convergence scene before the dragon chamber. All three forward paths (lava, cave, ash) feed into it. The kid gets one last sneak/bribe/fight choice before the final cavern.
+7. Realm card now shows the kid what they earned and what they kept. Ending tier labels map every adventure ending scene id to a kid-friendly title ("The Friend", "The Blessed", "The Snatcher", "The Hatcher", etc.).
+
+**Open:**
+- **ending_blessed reuses ending_appeased.webp art.** No unique image yet. The brief flagged this explicitly ("tells Vanessa to rerun a generator if she wants a unique one"). Add a prompt for `ending_blessed` to scripts/hunt-dragon-egg-prompts.ts and rerun if you want art parity.
+- **First-tap chings can be silent on Safari** due to the autoplay policy. Subsequent transactions ching reliably. Acceptable; the first transaction is usually a small forest_path tap, not the memorable shrine moment.
+- **6 choices on the riverbank** is a lot on small screens. CHOICE_POSITIONS now has 6 slots but the layout is dense. If kids find it confusing in playtest, consider consolidating river_crossing + waterfall + mount into a "Cross / Climb / Mount" sub-choice scene later.
+- **The robbed flag is wired but unused.** No ending uses it. Future batch could add an ending_robbed tier ("The Robbed", showing coins=0 + the run-and-drop flag).
+- **No achievement integration for new scenes.** B-013+ added some achievement triggers; the new scenes (shrine, thief, etc.) do not have achievement defs. Out of scope per the brief.
+
+**Next session:** If smoke tests surface anything broken, the rollback path is `git revert 5e2db91 4859f41 f144cca 08f07a6 29b462f` (six commits, top to bottom). Otherwise consider B-015 entry videos brief next, or polish ending_blessed art.
+
+**Pushed:** yes (5e2db91 plus the CHANGES + checklist commit to follow)
+
+---
+
 ## B-012 — 2026-04-30 — CLI
 **Touched:**
 - lib/themes-catalog.ts (SubScene type gains optional `required_pickups: string[]`. 5 castle sub-scenes now declare gates: castle_library → rusty_key, castle_dungeon → torch, castle_tower_stairs → climbing_rope, castle_dragons_lair → dragons_lullaby, castle_ancient_crypt → ancient_tome. Other 5 themes untouched).

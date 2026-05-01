@@ -440,7 +440,7 @@ Respond with ONLY JSON in EXACTLY this shape, no preamble, no markdown, no code 
           "label": "2 to 6 word kid-friendly button text",
           "next_scene_id": "id of another scene in this tree",
           "interactable_kind": "door | chest | path | sparkle | creature",
-          "hint": "one short sentence describing the TONE of this path (NOT the consequence). Examples: 'this path looks calm and quiet' or 'something here hums with mischief'. Avoid spoilers like 'leads to the secret ending'.",
+          "hint": "one short sentence that gives the player a real reason to pick THIS path over another. Hint at the EXPERIENCE: mood, what kind of trouble or reward, soft consequence. Don't spoil the ending, but make the kid feel like a thinking person, not a guesser. Examples: 'Cross openly. Heroes who pass through the gate are remembered, but the guards are watching.' / 'Slip through the side path to the garden. Quieter route, but you might miss the captain's news.' / 'Take the rusty key. Some doors only open with stubborn metal.'",
           "requires": ["optional, prop ids that must be collected first"]
         }
       ]

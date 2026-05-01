@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
-  <circle cx="200" cy="200" r="180" fill="#ffe1ec"/>
-  <circle cx="200" cy="160" r="56" fill="#c95a8a"/>
-  <path d="M120,320 Q200,220 280,320 Z" fill="#c95a8a"/>
-  <circle cx="184" cy="156" r="6" fill="#f4c243"/>
-  <circle cx="216" cy="156" r="6" fill="#f4c243"/>
-  <text x="380" y="388" text-anchor="end" font-family="ui-monospace, Menlo, monospace" font-size="14" fill="rgba(0,0,0,0.55)">placeholder: princess</text>
-</svg>

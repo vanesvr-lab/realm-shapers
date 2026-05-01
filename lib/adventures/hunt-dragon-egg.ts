@@ -87,6 +87,7 @@ const FOREST_RIDDLE: StoryScene = {
   narration:
     "An ancient oak blocks the path, and a face has formed in its bark. It opens one slow eye and speaks. \"Answer my riddle, traveler, before you walk on. I run but never walk. I have a bed but never sleep. I have a mouth but never eat. What am I?\"",
   background_id: BG("forest_riddle"),
+  entry_video_path: "/adventures/hunt-dragon-egg/forest_riddle_entry.mp4",
   ambient_audio_prompt: "deep slow wood creak, distant birds, soft wind",
   default_props: [],
   pickups: [],
@@ -196,6 +197,7 @@ const DARK_CAVERN: StoryScene = {
   narration:
     "The cave mouth swallows the light. Beyond a few steps, you cannot see your own hand. Something rustles in the dark and stops when you stop. You will need a real flame to go further, or you will lose the way.",
   background_id: BG("dark_cavern"),
+  entry_video_path: "/adventures/hunt-dragon-egg/dark_cavern_entry.mp4",
   ambient_audio_prompt: "deep hollow drip, distant flutter of wings, low cave hum",
   default_props: [],
   pickups: [],
@@ -232,6 +234,7 @@ const LAVA_RIVER_CROSSING: StoryScene = {
   narration:
     "A slow river of lava cuts across the path. The air shimmers. Cooled obsidian rocks jut up here and there. To cross, you would need a raft strong enough to ride the current, or a blade to lever the rocks into a row of stepping stones.",
   background_id: BG("lava_river_crossing"),
+  entry_video_path: "/adventures/hunt-dragon-egg/lava_river_crossing_entry.mp4",
   ambient_audio_prompt: "low lava bubbling, hot air shimmer, deep rumble",
   default_props: [],
   pickups: [],
@@ -415,6 +418,7 @@ const VOLCANO_BASE: StoryScene = {
   narration:
     "The mountain cracks. One huge stone eye opens in the rockface, glowing red, looking right at you. A low rumble fills the air. There are three paths up.",
   background_id: BG("volcano_base_speaks"),
+  entry_video_path: "/adventures/hunt-dragon-egg/volcano_base_speaks_entry.mp4",
   ambient_audio_prompt: "deep volcanic rumble, distant roar, heat shimmer",
   default_props: [],
   pickups: ["tarnished_medallion"],
@@ -601,6 +605,7 @@ const DRAGON_CHAMBER: StoryScene = {
   narration:
     "She watches you. Her side is scarred from old battles. Her breath is slow. The egg pulses softly between her claws. She does not move.",
   background_id: BG("dragon_chamber_wounded"),
+  entry_video_path: "/adventures/hunt-dragon-egg/dragon_chamber_entry.mp4",
   ambient_audio_prompt: "low dragon breath, faint warm hum, distant cavern echo",
   default_props: [],
   pickups: [],

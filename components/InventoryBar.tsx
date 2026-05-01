@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { ASSETS_BY_ID, assetUrlById } from "@/lib/asset-library";
+import { resolvePickupRender } from "@/lib/pickup-resolver";
 import { SummonButton } from "@/components/SummonButton";
 
 export function InventoryBar({
@@ -37,9 +37,8 @@ export function InventoryBar({
         ) : (
           <ul className="flex items-center gap-1.5">
             {items.map((id, idx) => {
-              const url = assetUrlById(id);
-              const meta = ASSETS_BY_ID[id];
-              if (!url || !meta) return null;
+              const rendered = resolvePickupRender(id);
+              if (!rendered) return null;
               const isFresh = id === recentlySummonedId;
               return (
                 <li
@@ -47,11 +46,11 @@ export function InventoryBar({
                   className={`relative w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-white/95 ring-2 ring-amber-200 shadow ${
                     isFresh ? "animate-summon-sparkle" : ""
                   }`}
-                  title={meta.alt}
+                  title={rendered.alt}
                 >
                   <Image
-                    src={url}
-                    alt={meta.alt}
+                    src={rendered.url}
+                    alt={rendered.alt}
                     fill
                     unoptimized
                     sizes="44px"

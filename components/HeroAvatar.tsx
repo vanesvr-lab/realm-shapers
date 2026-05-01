@@ -113,6 +113,13 @@ export function HeroAvatar({
       className="absolute"
       style={positionStyle}
     >
+      {/* B-012 scope 4: subtle idle bob, ~2s period, 2px swing. Wrapped in a
+          child motion so it composes with the entrance animation above. */}
+      <motion.div
+        className="relative w-full h-full"
+        animate={{ y: [0, -2, 0, 2, 0] }}
+        transition={{ repeat: Infinity, duration: 2.4, ease: "easeInOut", delay: 0.6 }}
+      >
       <button
         type="button"
         onClick={handleClick}
@@ -131,6 +138,7 @@ export function HeroAvatar({
           💭
         </span>
       </button>
+      </motion.div>
 
       <AnimatePresence>
         {bubble && (

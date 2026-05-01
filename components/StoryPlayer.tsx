@@ -7,6 +7,7 @@ import {
   assetUrlById,
 } from "@/lib/asset-library";
 import { resolveBackgroundUrl } from "@/lib/background-resolver";
+import { resolvePickupRender } from "@/lib/pickup-resolver";
 import { SUB_SCENES_BY_ID } from "@/lib/themes-catalog";
 import type { ChoiceOption, StoryScene, StoryTree } from "@/lib/claude";
 import { AudioPlayer } from "@/components/AudioPlayer";
@@ -654,16 +655,16 @@ export function StoryPlayer({
 
             {/* Pickups: glowing collectables */}
             {remainingPickups.map((propId, i) => {
-              const url = assetUrlById(propId);
-              const meta = ASSETS_BY_ID[propId];
-              if (!url || !meta) return null;
+              const rendered = resolvePickupRender(propId);
+              if (!rendered) return null;
+              const { url, alt } = rendered;
               const pos = PICKUP_POSITIONS[i] ?? PICKUP_POSITIONS[0];
               return (
                 <motion.button
                   key={`${scene.id}-pickup-${propId}`}
                   type="button"
                   onClick={() => pickup(propId)}
-                  aria-label={`Pick up ${meta.alt}`}
+                  aria-label={`Pick up ${alt}`}
                   className="absolute pointer-events-auto focus:outline-none"
                   style={{ ...pos, width: "min(13vw, 100px)", height: "min(13vw, 100px)" }}
                   initial={{ opacity: 0, scale: 0.8 }}
@@ -684,7 +685,7 @@ export function StoryPlayer({
                 >
                   <Image
                     src={url}
-                    alt={meta.alt}
+                    alt={alt}
                     fill
                     unoptimized
                     sizes="100px"

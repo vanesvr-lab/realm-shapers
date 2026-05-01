@@ -583,6 +583,8 @@ export function StoryPlayer({
     onComplete,
     onEvent,
     worldId,
+    counters,
+    counterDefs,
   ]);
 
   function visitScene(nextId: string) {

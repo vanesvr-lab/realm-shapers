@@ -33,6 +33,11 @@ export type SubScene = {
   // B-013 pilot: optional entry video that plays once on first scene entry
   // per (world_id, scene_id), then crossfades to file_path. Drawbridge only.
   entry_video_path?: string;
+  // B-012 gates: pickup ids the player must hold before the gating choice
+  // unlocks. Validated against lib/pickups-catalog at module load. Claude
+  // reads this list and emits matching `requires` arrays on the choice
+  // leading INTO this sub-scene. Empty/undefined means no gate.
+  required_pickups?: string[];
 };
 
 export type Theme = {
@@ -118,6 +123,7 @@ const castleSubScenes: SubScene[] = [
     connects_to: ["castle_secret_passage", "castle_ancient_crypt"],
     can_be_entry: false,
     can_be_ending: true,
+    required_pickups: ["torch"],
   },
   {
     id: "castle_kitchen",
@@ -138,6 +144,7 @@ const castleSubScenes: SubScene[] = [
     connects_to: ["castle_great_hall", "castle_royal_chambers", "castle_secret_passage"],
     can_be_entry: false,
     can_be_ending: false,
+    required_pickups: ["rusty_key"],
   },
   {
     id: "castle_royal_chambers",
@@ -163,6 +170,7 @@ const castleSubScenes: SubScene[] = [
     connects_to: ["castle_great_hall", "castle_royal_chambers", "castle_tower_top"],
     can_be_entry: false,
     can_be_ending: false,
+    required_pickups: ["climbing_rope"],
   },
   {
     id: "castle_tower_top",
@@ -209,6 +217,7 @@ const castleSubScenes: SubScene[] = [
     connects_to: ["castle_royal_garden", "castle_ancient_crypt"],
     can_be_entry: false,
     can_be_ending: true,
+    required_pickups: ["dragons_lullaby"],
   },
   {
     id: "castle_ancient_crypt",
@@ -219,6 +228,7 @@ const castleSubScenes: SubScene[] = [
     connects_to: ["castle_dungeon", "castle_secret_passage", "castle_dragons_lair"],
     can_be_entry: false,
     can_be_ending: true,
+    required_pickups: ["ancient_tome"],
   },
 ];
 

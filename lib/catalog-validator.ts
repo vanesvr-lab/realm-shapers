@@ -14,6 +14,7 @@
 
 import type { Theme } from "@/lib/themes-catalog";
 import type { Character } from "@/lib/characters-catalog";
+import { PICKUPS_BY_ID } from "@/lib/pickups-catalog";
 
 export function validateThemeCatalog(themes: Theme[]): void {
   const themeIds = new Set<string>();
@@ -52,6 +53,15 @@ export function validateThemeCatalog(themes: Theme[]): void {
         }
         if (target === sub.id) {
           throw new Error(`[catalog] sub-scene ${sub.id} connects to itself`);
+        }
+      }
+      if (sub.required_pickups) {
+        for (const pid of sub.required_pickups) {
+          if (!(pid in PICKUPS_BY_ID)) {
+            throw new Error(
+              `[catalog] sub-scene ${sub.id} required_pickups references unknown pickup ${pid}`
+            );
+          }
         }
       }
     }

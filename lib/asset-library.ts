@@ -90,6 +90,7 @@ export const CHARACTERS: AssetDef[] = [
   character("wizard", "Young wizard", "a young wizard with a starry purple hat and a soft glowing orb"),
   character("knight", "Friendly knight", "a friendly knight in shiny silver armor with a kind smile, no weapon"),
   character("princess", "Royal princess", "a royal princess in a flowing pink dress with a small crown"),
+  character("gingerbread_kid", "Gingerbread kid", "a friendly gingerbread kid with white icing buttons, a candy belt, and a warm cinnamon smile"),
   character("alien", "Cheerful alien", "a cheerful green alien with three eyes and a wide grin"),
   character("fairy", "Sparkly fairy", "a sparkly fairy with translucent wings and a flower dress"),
   character("mermaid", "Mermaid friend", "a friendly mermaid with a teal tail and seashell hair clips"),

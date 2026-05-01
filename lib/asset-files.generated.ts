@@ -30,6 +30,7 @@ export const ASSET_FILE_EXTENSIONS: Record<string, "svg" | "png"> = {
   "wizard": "png",
   "knight": "png",
   "princess": "png",
+  "gingerbread_kid": "png",
   "alien": "png",
   "fairy": "png",
   "mermaid": "png",

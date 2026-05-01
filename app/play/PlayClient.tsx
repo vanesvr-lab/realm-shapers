@@ -30,6 +30,15 @@ const RealmCard = dynamic(
   { ssr: false }
 );
 
+// Endings that signal the kid ran out of supplies and should retry. We
+// skip the realm card entirely for these and show a plain "out of food /
+// water" notice instead, since a celebratory card with achievements
+// reads wrong on a failure run.
+const FAILURE_ENDING_IDS = new Set<string>([
+  "ending_starvation",
+  "ending_dehydration",
+]);
+
 export function PlayClient({
   worldId,
   title: initialTitle,
@@ -603,19 +612,35 @@ export function PlayClient({
             className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 overflow-y-auto"
           >
             <div className="flex flex-col items-center gap-5 my-8">
-              <p className="text-amber-100 text-sm uppercase tracking-widest">
-                Your realm card
-              </p>
-              <RealmCard
-                title={title}
-                story={story}
-                endingScene={completion.endingScene}
-                ingredients={ingredients}
-                rarityInputs={completion.rarityInputs}
-                username={username}
-                flagTitleSuffix={completion.flagSuffix}
-                economy={completion.economy}
-              />
+              {FAILURE_ENDING_IDS.has(completion.endingScene.id) ? (
+                <div className="max-w-sm bg-white/95 rounded-2xl shadow-2xl p-6 text-center flex flex-col gap-3">
+                  <p className="text-xs uppercase tracking-widest text-rose-700 font-bold">
+                    Out of supplies
+                  </p>
+                  <h2 className="text-2xl font-bold text-amber-950">
+                    {completion.endingScene.title}
+                  </h2>
+                  <p className="text-sm sm:text-base text-slate-800 leading-relaxed">
+                    {completion.endingScene.narration}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-amber-100 text-sm uppercase tracking-widest">
+                    Your realm card
+                  </p>
+                  <RealmCard
+                    title={title}
+                    story={story}
+                    endingScene={completion.endingScene}
+                    ingredients={ingredients}
+                    rarityInputs={completion.rarityInputs}
+                    username={username}
+                    flagTitleSuffix={completion.flagSuffix}
+                    economy={completion.economy}
+                  />
+                </>
+              )}
               <div className="flex flex-wrap gap-2 justify-center">
                 {!isAdventure && (
                   <button

@@ -17,8 +17,21 @@ import { OracleSpeaks } from "@/components/OracleSpeaks";
 import { ChoiceMoment } from "@/components/ChoiceMoment";
 import { HeroAvatar } from "@/components/HeroAvatar";
 import { speakOracle } from "@/lib/oracle-bus";
+import {
+  playAmbient,
+  stopAmbient,
+  isAmbientMuted,
+  setAmbientMuted,
+  subscribeAmbientMute,
+} from "@/lib/ambient-bus";
 import type { FlagState } from "@/lib/flags";
 import { resolveScene, selectEnding } from "@/lib/scene-resolver";
+
+// B-012 scope 5. Sub-scene id → ambient track id (lib/ambient-bus). Only the
+// Drawbridge has an ambient loop in this batch; future scenes can extend.
+const AMBIENT_TRACK_BY_BACKGROUND: Record<string, string> = {
+  castle_drawbridge: "drawbridge",
+};
 
 export type GameplayEvent =
   | { kind: "scene_visited"; world_id: string; scene_id: string; background_id: string }
@@ -115,6 +128,10 @@ export function StoryPlayer({
   // Plays once per (world_id, scene_id), gated by sessionStorage so back-and-forth
   // navigation in the same session does not replay it.
   const [entryVideoActive, setEntryVideoActive] = useState(false);
+  // B-012 scope 5. Mirror localStorage mute state into React so the toggle
+  // button can re-render without polling. Initialized false to avoid SSR
+  // hydration mismatch; the effect below pulls the real value on mount.
+  const [ambientMuted, setAmbientMutedState] = useState(false);
   const audioCache = useRef<Record<string, string>>({});
   const completedRef = useRef(false);
   const endingRedirectedRef = useRef(false);
@@ -275,6 +292,29 @@ export function StoryPlayer({
       // ignore
     }
   }, [worldId, scene.id]);
+
+  // B-012 scope 5. Hydrate ambient mute state on mount and stay subscribed.
+  useEffect(() => {
+    setAmbientMutedState(isAmbientMuted());
+    return subscribeAmbientMute((m) => setAmbientMutedState(m));
+  }, []);
+
+  // B-012 scope 5. Per-scene ambient: start the loop when the active scene
+  // has an ambient track id, fade-stop when leaving. On unmount, stop.
+  useEffect(() => {
+    const trackId = AMBIENT_TRACK_BY_BACKGROUND[scene.background_id];
+    if (trackId) {
+      void playAmbient(trackId);
+    } else {
+      stopAmbient();
+    }
+  }, [scene.background_id]);
+
+  useEffect(() => {
+    return () => {
+      stopAmbient();
+    };
+  }, []);
 
   // Fire scene_visited (and side_quest_completed for side quest scenes) on
   // every scene change, including the initial mount.
@@ -746,6 +786,18 @@ export function StoryPlayer({
         >
           ↩ Editor
         </button>
+        {AMBIENT_TRACK_BY_BACKGROUND[scene.background_id] && (
+          <button
+            type="button"
+            onClick={() => setAmbientMuted(!ambientMuted)}
+            aria-pressed={ambientMuted}
+            aria-label={ambientMuted ? "Unmute ambient sound" : "Mute ambient sound"}
+            className="px-3 py-2 rounded-lg bg-white/90 text-amber-900 font-semibold text-sm shadow flex items-center gap-1"
+          >
+            <span aria-hidden>{ambientMuted ? "🔈" : "🔊"}</span>
+            <span>Ambient</span>
+          </button>
+        )}
         {onQuitRealm && (
           <button
             type="button"

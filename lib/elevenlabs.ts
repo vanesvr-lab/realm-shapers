@@ -17,7 +17,10 @@ export function heroVoiceIdFor(name: HeroVoiceName | null | undefined): string {
   return HERO_VOICE_RYAN;
 }
 
-export async function generateSoundEffect(prompt: string): Promise<Buffer> {
+export async function generateSoundEffect(
+  prompt: string,
+  options: { durationSeconds?: number; promptInfluence?: number } = {}
+): Promise<Buffer> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
     throw new Error("ELEVENLABS_API_KEY is not set");
@@ -32,8 +35,8 @@ export async function generateSoundEffect(prompt: string): Promise<Buffer> {
     },
     body: JSON.stringify({
       text: prompt,
-      duration_seconds: 22,
-      prompt_influence: 0.5,
+      duration_seconds: options.durationSeconds ?? 22,
+      prompt_influence: options.promptInfluence ?? 0.5,
     }),
   });
 

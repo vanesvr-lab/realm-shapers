@@ -12,6 +12,8 @@ export function InventoryBar({
   recentlySummonedId,
   onSummonGranted,
   onSummonDenied,
+  activeItemId,
+  onItemTap,
 }: {
   items: string[];
   worldId: string;
@@ -21,7 +23,15 @@ export function InventoryBar({
   recentlySummonedId: string | null;
   onSummonGranted: (propId: string, alt: string) => void;
   onSummonDenied: () => void;
+  // Adventure slice: tap-to-use mechanics. When activeItemId is set, that
+  // pickup gets a sparkle ring and StoryPlayer's tryActivate uses that as
+  // the kid's "armed" item. Tapping the same item disarms; tapping another
+  // arms it. Optional, so non-adventure flows can keep the display-only
+  // behavior by omitting both props.
+  activeItemId?: string | null;
+  onItemTap?: (id: string) => void;
 }) {
+  const interactive = !!onItemTap;
   return (
     <div className="flex items-center gap-2 flex-wrap">
       <div
@@ -40,14 +50,12 @@ export function InventoryBar({
               const rendered = resolvePickupRender(id);
               if (!rendered) return null;
               const isFresh = id === recentlySummonedId;
-              return (
-                <li
-                  key={`${id}-${idx}`}
-                  className={`relative w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-white/95 ring-2 ring-amber-200 shadow ${
-                    isFresh ? "animate-summon-sparkle" : ""
-                  }`}
-                  title={rendered.alt}
-                >
+              const isActive = activeItemId === id;
+              const ringClass = isActive
+                ? "ring-amber-400 ring-4 animate-summon-sparkle"
+                : "ring-amber-200";
+              const inner = (
+                <>
                   <Image
                     src={rendered.url}
                     alt={rendered.alt}
@@ -64,6 +72,34 @@ export function InventoryBar({
                       ✨
                     </span>
                   )}
+                </>
+              );
+              if (interactive) {
+                return (
+                  <li key={`${id}-${idx}`}>
+                    <button
+                      type="button"
+                      onClick={() => onItemTap?.(id)}
+                      aria-pressed={isActive}
+                      title={rendered.alt}
+                      className={`relative w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-white/95 ring-2 shadow transition ${ringClass} ${
+                        isFresh ? "animate-summon-sparkle" : ""
+                      } hover:scale-105`}
+                    >
+                      {inner}
+                    </button>
+                  </li>
+                );
+              }
+              return (
+                <li
+                  key={`${id}-${idx}`}
+                  className={`relative w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-white/95 ring-2 ${ringClass} shadow ${
+                    isFresh ? "animate-summon-sparkle" : ""
+                  }`}
+                  title={rendered.alt}
+                >
+                  {inner}
                 </li>
               );
             })}

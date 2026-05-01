@@ -8,6 +8,7 @@ import {
   getSubScene,
 } from "@/lib/themes-catalog";
 import { CHARACTERS_BY_ID } from "@/lib/characters-catalog";
+import { getAdventure, isValidAdventureId } from "@/lib/adventures";
 
 // B-011 scope 5: /api/generate accepts two payload shapes.
 //
@@ -41,10 +42,16 @@ type NewBody = {
 
 type LegacyBody = WorldIngredients & { progressive?: boolean };
 
-type GenerateBody = Partial<NewBody> & Partial<LegacyBody>;
+type AdventureBody = { adventure_id: string };
+
+type GenerateBody = Partial<NewBody> & Partial<LegacyBody> & Partial<AdventureBody>;
 
 function isNewShape(body: GenerateBody): boolean {
   return typeof body.theme === "string" && typeof body.entry_sub_scene_id === "string";
+}
+
+function isAdventureShape(body: GenerateBody): boolean {
+  return typeof body.adventure_id === "string" && body.adventure_id.length > 0;
 }
 
 export async function POST(req: NextRequest) {
@@ -58,6 +65,62 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = (await req.json()) as GenerateBody;
+
+    // Adventure slice: hand-authored adventure short-circuit. Skips Claude
+    // entirely. Saves the static tree to worlds.map and returns the same
+    // response shape as the Claude path, with generation_status='complete'.
+    // PlayClient downstream is unaware these came from a registry.
+    if (isAdventureShape(body)) {
+      const adventureId = String(body.adventure_id);
+      if (!isValidAdventureId(adventureId)) {
+        return NextResponse.json(
+          { error: `Unknown adventure: ${adventureId}` },
+          { status: 400 }
+        );
+      }
+      const adventure = getAdventure(adventureId)!;
+      const startingScene = adventure.story.scenes.find(
+        (s) => s.id === adventure.story.starting_scene_id
+      );
+      const narration = startingScene?.narration ?? "";
+      const audioPrompt =
+        startingScene?.ambient_audio_prompt ?? "soft wind, gentle outdoor air";
+      const ingredientsForRow: WorldIngredients = {
+        setting: adventure.story.title,
+        character: adventure.story.default_character_id,
+        character_asset_id: adventure.story.default_character_id,
+        goal: adventure.story.title,
+        twist: "",
+      };
+      const { data: row, error } = await supabase
+        .from("worlds")
+        .insert({
+          user_id: user.id,
+          title: adventure.story.title,
+          narration,
+          ingredients: ingredientsForRow,
+          map: adventure.story,
+          audio_prompt: audioPrompt,
+          generation_status: "complete",
+          theme: null,
+        })
+        .select("id, share_slug")
+        .single();
+      if (error || !row) {
+        return NextResponse.json(
+          { error: "Failed to save adventure: " + (error?.message ?? "unknown") },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json({
+        title: adventure.story.title,
+        story: adventure.story,
+        id: row.id,
+        share_slug: row.share_slug,
+        unlocked: [],
+        generation_status: "complete",
+      });
+    }
 
     let ingredients: WorldIngredients;
     let themeColumn: string | null;
@@ -188,7 +251,13 @@ export async function POST(req: NextRequest) {
       generation_status: progressive ? "phase_1" : "complete",
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("/api/generate failed", err);
+    return NextResponse.json(
+      {
+        error:
+          "The Oracle could not shape this realm right now. Please pick a new realm and try again.",
+      },
+      { status: 500 }
+    );
   }
 }

@@ -2,11 +2,13 @@
 import { motion } from "framer-motion";
 import type { ChoiceOption } from "@/lib/claude";
 
-// Two-button fork UI for is_choice_scene scenes. Replaces the normal
-// Interactable layout in StoryPlayer for that scene only. Style language
-// matches Interactable: warm gradient, glowing ring on hover, large tap
-// target. The choice scene's narration sets up the fork; this component
-// just renders the two visible options.
+// Two-to-four-button fork UI for is_choice_scene scenes. Replaces the
+// normal Interactable layout in StoryPlayer for that scene only. Style
+// language matches Interactable: warm gradient, glowing ring on hover,
+// large tap target. The choice scene's narration sets up the fork; this
+// component just renders the visible options. Adventure slice: riddle
+// scenes use 3 options (right answer + two distractors); the original
+// two-button "is_choice_scene" pattern still works unchanged.
 
 export function ChoiceMoment({
   options,
@@ -15,7 +17,7 @@ export function ChoiceMoment({
   options: ChoiceOption[];
   onChoose: (option: ChoiceOption) => void;
 }) {
-  if (options.length !== 2) return null;
+  if (options.length < 2 || options.length > 4) return null;
   return (
     <div className="absolute inset-x-0 bottom-[18%] z-10 flex justify-center pointer-events-none">
       <div className="flex flex-wrap gap-4 sm:gap-6 justify-center pointer-events-auto px-4">

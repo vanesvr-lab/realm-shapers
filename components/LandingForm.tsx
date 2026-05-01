@@ -109,6 +109,11 @@ export function LandingForm() {
   const step4Done = step3Done && goal.trim().length > 0;
   const step5Done = step4Done && twist.trim().length > 0;
   const step6Visible = step5Done;
+  // Adventure slice: castle theme routes to the hand-authored adventure,
+  // which doesn't ask for goal / twist. Skip steps 4-6 entirely and let
+  // the kid submit right after step 3.
+  const isAdventureFlow = theme?.id === "castle";
+  const submitVisible = isAdventureFlow ? step3Done : step6Visible;
 
   // For IdeaButton context: feed the 4-ingredient picture so suggestions
   // for goal / twist consider the theme + character context.
@@ -130,28 +135,29 @@ export function LandingForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!step6Visible || loading) return;
+    if (!submitVisible || loading) return;
     if (!theme || !entrySubScene || !character) return;
     setLoading(true);
     setError(null);
     try {
-      const payload: {
-        theme: string;
-        entry_sub_scene_id: string;
-        character_id: string;
-        character_name?: string;
-        goal: string;
-        twist: string;
-        progressive?: boolean;
-      } = {
-        theme: theme.id,
-        entry_sub_scene_id: entrySubScene.id,
-        character_id: character.id,
-        character_name: heroName.trim() || undefined,
-        goal: goal.trim(),
-        twist: twist.trim(),
-      };
-      if (process.env.NEXT_PUBLIC_PROGRESSIVE_GEN === "true") {
+      // Adventure slice: when the kid picks the Castle theme, route into the
+      // hand-authored Hunt the Dragon's Egg adventure instead of the Claude
+      // generation flow. The form fields are still required up to step 3
+      // (theme, sub-scene, character) so the kid sees the same picking
+      // experience; we just discard the goal/twist text and substitute the
+      // adventure tree on submit.
+      const payload: Record<string, unknown> =
+        theme.id === "castle"
+          ? { adventure_id: "hunt-dragon-egg" }
+          : {
+              theme: theme.id,
+              entry_sub_scene_id: entrySubScene.id,
+              character_id: character.id,
+              character_name: heroName.trim() || undefined,
+              goal: goal.trim(),
+              twist: twist.trim(),
+            };
+      if (theme.id !== "castle" && process.env.NEXT_PUBLIC_PROGRESSIVE_GEN === "true") {
         payload.progressive = true;
       }
       const res = await fetch("/api/generate", {
@@ -161,7 +167,10 @@ export function LandingForm() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "The Oracle could not shape this realm. Try again.");
+        setError(
+          data.error ??
+            "The Oracle could not shape this realm right now. Please pick a new realm and try again."
+        );
         setLoading(false);
         return;
       }
@@ -291,7 +300,7 @@ export function LandingForm() {
       )}
 
       {/* Step 4: Goal */}
-      {step3Done && (
+      {step3Done && !isAdventureFlow && (
         <Step
           number={4}
           title="What is the goal?"
@@ -310,7 +319,7 @@ export function LandingForm() {
       )}
 
       {/* Step 5: Twist */}
-      {step4Done && (
+      {step4Done && !isAdventureFlow && (
         <Step
           number={5}
           title="What is the twist?"
@@ -329,7 +338,7 @@ export function LandingForm() {
       )}
 
       {/* Step 6: Prompt preview */}
-      {step6Visible && theme && entrySubScene && character && (
+      {step6Visible && !isAdventureFlow && theme && entrySubScene && character && (
         <Step
           number={6}
           title="Your prompt"
@@ -350,13 +359,19 @@ export function LandingForm() {
         <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">{error}</p>
       )}
 
-      {step6Visible && (
+      {submitVisible && (
         <button
           type="submit"
           disabled={!authReady || loading}
           className="w-full px-5 py-4 rounded-xl bg-amber-700 text-white font-bold text-lg shadow hover:bg-amber-800 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? "Shaping your realm..." : authReady ? "Summon Realm" : "Getting ready..."}
+          {loading
+            ? "Shaping your realm..."
+            : !authReady
+            ? "Getting ready..."
+            : isAdventureFlow
+            ? "Begin the Adventure"
+            : "Summon Realm"}
         </button>
       )}
 

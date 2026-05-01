@@ -45,6 +45,10 @@ export function RealmCard({
   const charUrl = assetUrlById(story.default_character_id);
   const charMeta = ASSETS_BY_ID[story.default_character_id];
   const bgUrl = resolveBackgroundUrl(endingScene.background_id);
+  // B-019: stripped cards (snatched / lost endings) hide ingredients,
+  // coins, and trophies and show a regret line where the body content
+  // would normally sit.
+  const isStripped = economy?.isStripped === true;
 
   async function downloadPng() {
     if (!cardRef.current || downloading) return;
@@ -153,40 +157,72 @@ export function RealmCard({
             {endingScene.narration}
           </p>
 
-          <div className="px-4 mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
-            <Ingredient label="Setting" value={ingredients.setting} />
-            <Ingredient label="Character" value={ingredients.character} />
-            <Ingredient label="Goal" value={ingredients.goal} />
-            <Ingredient label="Twist" value={ingredients.twist} />
-          </div>
-
-          {economy && (
-            <div className="px-4 mt-2 text-[10px] text-amber-950 leading-tight space-y-0.5">
-              {economy.endingTier && (
-                <div>
-                  <span className="uppercase font-bold text-amber-700 tracking-wider">
-                    Ending:
-                  </span>{" "}
-                  <span className="font-semibold">{economy.endingTier}</span>
+          {isStripped ? (
+            <div className="px-4 mt-3 text-amber-950">
+              {economy?.endingTier && (
+                <div className="mb-1.5 text-center">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-rose-700">
+                    Ending tier
+                  </span>
+                  <div className="text-base font-extrabold text-rose-900">
+                    {economy.endingTier}
+                  </div>
                 </div>
               )}
-              <div>
-                <span className="uppercase font-bold text-amber-700 tracking-wider">
-                  Coins:
-                </span>{" "}
-                {economy.coinsEarned} earned, {economy.coinsRemaining} remaining
-              </div>
-              {economy.trophies.length > 0 && (
-                <div>
-                  <span className="uppercase font-bold text-amber-700 tracking-wider">
-                    Trophies:
-                  </span>{" "}
-                  {economy.trophies
-                    .map((id) => getPickup(id)?.label ?? id)
-                    .join(", ")}
-                </div>
+              {economy?.strippedLine && (
+                <p className="text-xs italic text-rose-900 leading-snug text-center">
+                  {economy.strippedLine}
+                </p>
               )}
             </div>
+          ) : (
+            <>
+              <div className="px-4 mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+                <Ingredient label="Setting" value={ingredients.setting} />
+                <Ingredient label="Character" value={ingredients.character} />
+                <Ingredient label="Goal" value={ingredients.goal} />
+                <Ingredient label="Twist" value={ingredients.twist} />
+              </div>
+
+              {economy && (
+                <div className="px-4 mt-2 text-[10px] text-amber-950 leading-tight space-y-0.5">
+                  {economy.endingTier && (
+                    <div>
+                      <span className="uppercase font-bold text-amber-700 tracking-wider">
+                        Ending:
+                      </span>{" "}
+                      <span className="font-semibold">{economy.endingTier}</span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="uppercase font-bold text-amber-700 tracking-wider">
+                      Coins:
+                    </span>{" "}
+                    {economy.coinsEarned} earned, {economy.coinsRemaining} remaining
+                  </div>
+                  {economy.trophies.length > 0 && (
+                    <div>
+                      <span className="uppercase font-bold text-amber-700 tracking-wider">
+                        Trophies:
+                      </span>{" "}
+                      {economy.trophies
+                        .map((id) => getPickup(id)?.label ?? id)
+                        .join(", ")}
+                    </div>
+                  )}
+                  {economy.builderTier &&
+                    economy.builderXp !== undefined &&
+                    economy.builderXp > 0 && (
+                      <div>
+                        <span className="uppercase font-bold text-amber-700 tracking-wider">
+                          Builder:
+                        </span>{" "}
+                        {economy.builderTier} ({economy.builderXp} XP)
+                      </div>
+                    )}
+                </div>
+              )}
+            </>
           )}
 
           <footer className="absolute left-0 right-0 bottom-2 flex items-center justify-between px-4">

@@ -52,6 +52,7 @@ const SCENE = {
   ending_charmed: "ending_charmed",
   ending_appeased: "ending_appeased",
   ending_blessed: "ending_blessed",
+  ending_composer: "ending_composer",
   ending_success: "ending_success",
   ending_secret: "ending_secret",
 } as const;
@@ -67,6 +68,13 @@ const FLAG = {
   // B-014 economy: shrine blessing + thief encounter outcome.
   blessing: "blessing",
   robbed: "robbed",
+  // B-019 build economy. composer_masterwork unlocks the new Composer
+  // ending when the kid plays a level-5 music box. music_box_basic
+  // routes a low-level music box to Appeased. snatched_egg drives the
+  // stripped realm card on the snatch path.
+  composer_masterwork: "composer_masterwork",
+  music_box_basic: "music_box_basic",
+  snatched_egg: "snatched_egg",
   // Derived (computed in PlayClient from counters; do not set explicitly):
   // food_critical, food_empty, water_critical, water_empty
 } as const;
@@ -184,6 +192,19 @@ const RIVER_CROSSING: StoryScene = {
       hint: "lash logs to rope; ride the current across",
       oracle_hint:
         "Rafts ask for two things: wood from the fallen pine off the trail, and rope from where the river bends.",
+    },
+    // B-019: a raft you crafted in Skills & Build. Consumes the built
+    // pickup; arrival narration is the same as build_raft above.
+    {
+      id: "cross_with_built_raft",
+      label: "Cross on the raft you built",
+      next_scene_id: SCENE.volcano_base,
+      interactable_kind: "path",
+      requires: ["built_raft"],
+      consumes: ["built_raft"],
+      hint: "your raft holds; the current carries you across",
+      oracle_hint:
+        "A raft of your making spares you the chop. Visit the shop, then the Skills panel.",
     },
     {
       id: "back_to_river",
@@ -314,6 +335,18 @@ const FOREST_PATH: StoryScene = {
       hint: "shortcut, but you will need the rope",
       oracle_hint:
         "Coils of rope sometimes wash up where the river bends. Listen for the water and walk that way.",
+    },
+    // B-019: a built ladder skips the rope gate. Consumed on use.
+    {
+      id: "climb_with_ladder",
+      label: "Climb with the ladder you built",
+      next_scene_id: SCENE.cliff_climb,
+      interactable_kind: "path",
+      requires: ["built_ladder"],
+      consumes: ["built_ladder"],
+      hint: "your ladder leans against the cliff and holds steady",
+      oracle_hint:
+        "A ladder of your own making spares the rope. Build one in Skills, materials from the Supreme Shop.",
     },
     {
       id: "go_riverbank",
@@ -697,6 +730,21 @@ const DRAGON_CHAMBER: StoryScene = {
       oracle_hint:
         "An old song rests in scrolls left in cool, quiet caves. Take the path that smells of stone.",
     },
+    // B-019: a music box you built. Loops back to dragon_chamber the
+    // way the lullaby choice does. Level (recorded at build time) drives
+    // the resulting flags via builds-catalog.consume_level_flags so that
+    // a level-5 music box unlocks the new Composer ending.
+    {
+      id: "play_music_box",
+      label: "Play the music box you built",
+      next_scene_id: SCENE.dragon_chamber,
+      interactable_kind: "creature",
+      requires: ["built_music_box"],
+      consumes: ["built_music_box"],
+      hint: "the cavern fills with a tune of your own making",
+      oracle_hint:
+        "A music box you craft yourself. Cloth, wax, and feather. Five details in your prompt unlock something special.",
+    },
     {
       id: "answer_riddle",
       label: "Answer her riddle",
@@ -711,14 +759,35 @@ const DRAGON_CHAMBER: StoryScene = {
       interactable_kind: "path",
       hint: "the long way back, this trip will cost much food and water",
     },
+    // B-019: Take the egg now costs 200 coins AND requires one of three
+    // earned items. Routes to the existing endings system; the kid gets
+    // Friend / Charmer / Composer / Appeased / Blessed depending on the
+    // flags they have built up.
     {
       id: "take_egg",
-      label: "Take the egg",
+      label: "Take the egg, with thanks (200 coins)",
+      next_scene_id: SCENE.ending_success,
+      interactable_kind: "chest",
+      coin_cost: 200,
+      requires_any: ["dragons_lullaby", "rare_gem", "built_music_box"],
+      grants: ["dragons_egg"],
+      sets_flag: FLAG.grabbed_egg,
+      hint: "you offer coins and a token; she lets you take the egg",
+      oracle_hint:
+        "The egg is not free. The realm asks for 200 coins and proof you earned the trip: a lullaby scroll, a rare gem, or a music box you built.",
+    },
+    // B-019: the snatch path is always available. Routes to ending_success
+    // (existing Snatcher narration). Sets the snatched_egg flag so the
+    // realm card renders stripped (no ingredients grid, no coins, no
+    // trophies).
+    {
+      id: "snatch_egg",
+      label: "Snatch the egg and run",
       next_scene_id: SCENE.ending_success,
       interactable_kind: "chest",
       grants: ["dragons_egg"],
-      sets_flag: FLAG.grabbed_egg,
-      hint: "the moment you commit, there is no going back",
+      sets_flag: FLAG.snatched_egg,
+      hint: "fast hands, hard cost; the realm will whisper",
     },
   ],
 };
@@ -1225,6 +1294,23 @@ const ENDING_SUCCESS: StoryScene = {
   choices: [],
 };
 
+// B-019: a new earned ending unlocked by a level-5 music box. Reuses
+// ending_charmed.webp art (a peaceful dawn) since both endings share the
+// "Vex sleeps" beat. Vanessa can rerun the generator with a unique
+// prompt later for art parity.
+const ENDING_COMPOSER: StoryScene = {
+  id: SCENE.ending_composer,
+  title: "The Composer",
+  narration:
+    "You opened the music box you built. The cavern filled with a tune nobody had heard before. Vex closed her eyes and breathed slow. The egg pulsed in time with the song. You walked out into the dawn carrying both the egg and a new song the realm will hum for a hundred years.",
+  background_id: BG("ending_charmed"),
+  ambient_audio_prompt: "soft dawn wind, gentle music box notes, calm bells",
+  default_props: [],
+  pickups: [],
+  is_side_quest: false,
+  choices: [],
+};
+
 const ENDING_SECRET: StoryScene = {
   id: SCENE.ending_secret,
   title: "Hatched at Home",
@@ -1275,6 +1361,7 @@ const STORY: StoryTree = {
     ENDING_CHARMED,
     ENDING_APPEASED,
     ENDING_BLESSED,
+    ENDING_COMPOSER,
     ENDING_SUCCESS,
   ],
   secret_ending: ENDING_SECRET,
@@ -1288,10 +1375,22 @@ const STORY: StoryTree = {
     { id: FLAG.grabbed_egg, description: "took the dragon's egg" },
     { id: FLAG.blessing, description: "left a coin at the shrine" },
     { id: FLAG.robbed, description: "ran from the toll road and lost everything" },
+    { id: FLAG.composer_masterwork, description: "played a level-5 music box for the dragon" },
+    { id: FLAG.music_box_basic, description: "played a basic music box for the dragon" },
+    { id: FLAG.snatched_egg, description: "snatched the egg without earning it" },
   ],
   endings: [
     { scene_id: SCENE.ending_starvation, requires: { food_empty: true } },
     { scene_id: SCENE.ending_dehydration, requires: { water_empty: true } },
+    // B-019: snatched_egg routes to the existing Snatcher narration but
+    // the realm card renders stripped (no ingredients, no coins, no
+    // trophies). Ranked above earned endings so that it always wins
+    // even if the kid had also tended/sung earlier.
+    { scene_id: SCENE.ending_success, requires: { [FLAG.snatched_egg]: true } },
+    // B-019: a level-5 music box unlocks the new Composer ending. Ranked
+    // above Friend so a tended-and-sung-and-played-masterwork run gets
+    // the rarest tier.
+    { scene_id: SCENE.ending_composer, requires: { [FLAG.composer_masterwork]: true } },
     {
       scene_id: SCENE.ending_friend,
       requires: { [FLAG.tended_wound]: true, [FLAG.sang_lullaby]: true },
@@ -1303,6 +1402,12 @@ const STORY: StoryTree = {
     { scene_id: SCENE.ending_charmed, requires: { [FLAG.sang_lullaby]: true } },
     { scene_id: SCENE.ending_appeased, requires: { [FLAG.tended_wound]: true } },
     { scene_id: SCENE.ending_appeased, requires: { [FLAG.riddle_answered]: true } },
+    // B-019: low-level music box (level 1-2) routes to Appeased.
+    { scene_id: SCENE.ending_appeased, requires: { [FLAG.music_box_basic]: true } },
+    // B-019: polite take with coins + a non-song token (rare_gem only)
+    // still feels earned, so route to Appeased rather than the snatch
+    // narration.
+    { scene_id: SCENE.ending_appeased, requires: { [FLAG.grabbed_egg]: true } },
     { scene_id: SCENE.ending_success, requires: {} },
   ],
   level: 1,

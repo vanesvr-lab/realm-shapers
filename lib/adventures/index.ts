@@ -91,6 +91,13 @@ function validateAdventure(adventure: Adventure): void {
           );
         }
       }
+      for (const r of choice.requires_any ?? []) {
+        if (!validPickupIds(r)) {
+          throw new Error(
+            `adventure ${id}: scene ${scene.id} choice ${choice.id} requires_any unknown pickup ${r}`
+          );
+        }
+      }
       for (const c of choice.consumes ?? []) {
         if (!validPickupIds(c)) {
           throw new Error(

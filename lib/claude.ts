@@ -90,6 +90,12 @@ export type StoryChoice = {
   next_scene_id: string;
   interactable_kind: InteractableKind;
   requires?: string[];
+  // B-019: alternative gate. The choice unlocks when at least ONE of the
+  // listed pickup ids is in inventory (not all). Used for the egg ending
+  // where the kid may have any of: dragons_lullaby, rare_gem,
+  // built_music_box. Coexists with `requires` (which is still all-or-
+  // nothing). Optional; absent on every pre-B-019 choice.
+  requires_any?: string[];
   // B-010 scope 8: one-sentence flavor hint shown when the kid first taps
   // this choice. Tone, not spoiler ("this path looks calm and quiet" not
   // "this path leads to the secret ending"). Optional for back-compat with

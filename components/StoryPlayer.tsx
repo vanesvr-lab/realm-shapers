@@ -18,7 +18,16 @@ import { OracleSpeaks } from "@/components/OracleSpeaks";
 import { ChoiceMoment } from "@/components/ChoiceMoment";
 import { HeroAvatar } from "@/components/HeroAvatar";
 import { MapOverlay } from "@/components/MapOverlay";
-import { speakOracle } from "@/lib/oracle-bus";
+import { LeftRail } from "@/components/LeftRail";
+import { HintsPanel, type HeardHint } from "@/components/HintsPanel";
+import { SupremeShop } from "@/components/SupremeShop";
+import { BuildPanel, type BuildResult } from "@/components/BuildPanel";
+import { speakOracle, subscribeOracle } from "@/lib/oracle-bus";
+import {
+  BUILD_TARGETS_BY_PICKUP_ID,
+  builderTier,
+} from "@/lib/builds-catalog";
+import { buildFeedbackLine } from "@/lib/build-scorer";
 import { setOraclePin } from "@/lib/oracle-pin-bus";
 import {
   playAmbient,
@@ -63,6 +72,7 @@ const ENDING_TIER_LABELS: Record<string, string> = {
   ending_charmed: "The Charmer",
   ending_appeased: "The Appeased",
   ending_blessed: "The Blessed",
+  ending_composer: "The Composer",
   ending_success: "The Snatcher",
   ending_starvation: "The Lost",
   ending_dehydration: "The Lost",
@@ -70,11 +80,43 @@ const ENDING_TIER_LABELS: Record<string, string> = {
   ending_secret: "The Hatcher",
 };
 
+// B-019: ending scene ids that render as stripped realm cards (no
+// ingredients grid, no coins, no trophies). Snatched and Lost both
+// strip; everything else renders the full card.
+const STRIPPED_ENDING_IDS = new Set<string>([
+  "ending_success",
+  "ending_starvation",
+  "ending_dehydration",
+  "ending_lost",
+]);
+
+// B-019: shame / regret line shown in the stripped realm card. Snatched
+// is the only tier with a "you took what wasn't earned" line; lost
+// endings get a softer line.
+const STRIPPED_ENDING_LINES: Record<string, string> = {
+  ending_success: "You took what wasn't earned. The realm will whisper.",
+  ending_starvation: "The road took more than you brought.",
+  ending_dehydration: "The road took more than you brought.",
+  ending_lost: "Some paths fold back on themselves. Try again, kinder.",
+};
+
 export type EconomySummary = {
   coinsEarned: number;
   coinsRemaining: number;
   trophies: string[];
   endingTier: string | null;
+  // B-019: when true, the realm card renders without ingredients,
+  // coins, or trophies and shows a regret line instead. Set for
+  // snatched and lost endings; unset for earned endings (Friend,
+  // Composer, Blessed, Charmer, Appeased, Hatcher).
+  isStripped: boolean;
+  // B-019: the regret line shown when isStripped is true.
+  strippedLine?: string;
+  // B-019: builder tier reached this run (Apprentice / Builder / Master
+  // Builder / Legendary). Always present for adventure runs even if 0
+  // builds happened, so the card can credit careful builders.
+  builderTier?: string;
+  builderXp?: number;
 };
 
 type CompletionPayload = {
@@ -196,6 +238,18 @@ export function StoryPlayer({
   // button at left-bottom; closed via the Close button or by tapping
   // the backdrop / a visited node.
   const [mapOpen, setMapOpen] = useState(false);
+  // B-019: panel open state for the new left-rail entry points.
+  const [hintsOpen, setHintsOpen] = useState(false);
+  const [shopOpen, setShopOpen] = useState(false);
+  const [buildOpen, setBuildOpen] = useState(false);
+  // B-019: every "hint" kind line the kid hears, captured by subscribing
+  // to the oracle bus. Rendered read-only inside the Hints panel.
+  const [heardHints, setHeardHints] = useState<HeardHint[]>([]);
+  // B-019: builder XP accumulated this run and per-built-item levels.
+  // builtLevels maps built_<target> -> level so the consume path can
+  // apply level-tier flags from builds-catalog.consume_level_flags.
+  const [builderXp, setBuilderXp] = useState(0);
+  const [builtLevels, setBuiltLevels] = useState<Record<string, number>>({});
   // B-013: entry video state for sub-scenes that carry an entry_video_path.
   // "playing" → render <video> on top; "ended" → static image only.
   // Plays once per (world_id, scene_id), gated by sessionStorage so back-and-forth
@@ -208,6 +262,12 @@ export function StoryPlayer({
   const audioCache = useRef<Record<string, string>>({});
   const completedRef = useRef(false);
   const endingRedirectedRef = useRef(false);
+  // B-019: latest scene context for the oracle-bus subscriber, so each
+  // captured hint is tagged with where the kid was when they heard it.
+  const sceneCtxRef = useRef<{ id: string; title: string }>({
+    id: story.starting_scene_id,
+    title: "",
+  });
 
   const sceneById = useMemo(() => {
     const m = new Map<string, StoryScene>();
@@ -367,6 +427,33 @@ export function StoryPlayer({
   useEffect(() => {
     setPreviewedInteractableId(null);
   }, [scene.id]);
+
+  // B-019: keep the latest scene context in a ref so the oracle-bus
+  // subscriber can stamp each captured hint with where the kid was.
+  useEffect(() => {
+    sceneCtxRef.current = { id: scene.id, title: scene.title };
+  }, [scene.id, scene.title]);
+
+  // B-019: subscribe to the oracle bus and append every "hint" kind
+  // line to heardHints. Hints panel renders this list read-only. No
+  // duplicate suppression: if the same hint is spoken twice in two
+  // scenes, both entries belong (the kid is making progress).
+  useEffect(() => {
+    const unsubscribe = subscribeOracle((line) => {
+      if (line.kind !== "hint") return;
+      const ctx = sceneCtxRef.current;
+      setHeardHints((prev) => [
+        ...prev,
+        {
+          sceneId: ctx.id,
+          sceneTitle: ctx.title,
+          text: line.text,
+          ts: Date.now(),
+        },
+      ]);
+    });
+    return unsubscribe;
+  }, []);
 
   // B-013 entry video gate. Each scene change re-checks: does this scene have
   // an entry video AND has it not played yet in this session for this world?
@@ -561,11 +648,16 @@ export function StoryPlayer({
           trophies.push(id);
         }
       }
+      const isStripped = STRIPPED_ENDING_IDS.has(finalScene.id);
       economy = {
         coinsEarned,
         coinsRemaining: counters.coins ?? 0,
         trophies,
         endingTier: ENDING_TIER_LABELS[finalScene.id] ?? null,
+        isStripped,
+        strippedLine: isStripped ? STRIPPED_ENDING_LINES[finalScene.id] : undefined,
+        builderTier: builderTier(builderXp),
+        builderXp,
       };
     }
     onComplete?.({
@@ -595,6 +687,7 @@ export function StoryPlayer({
     worldId,
     counters,
     counterDefs,
+    builderXp,
   ]);
 
   function visitScene(nextId: string) {
@@ -651,13 +744,31 @@ export function StoryPlayer({
     const missing = required.filter((r) => !inventory.includes(r));
     if (missing.length > 0) {
       const names = missing
-        .map((id) => ASSETS_BY_ID[id]?.alt ?? id.replace(/_/g, " "))
+        .map((id) => ASSETS_BY_ID[id]?.alt ?? getPickup(id)?.label ?? id.replace(/_/g, " "))
         .join(" and ");
       speakOracle({
         text: `Hmm, perhaps you need to find ${names} first.`,
         kind: "hint",
       });
       return;
+    }
+    // B-019: requires_any. The choice unlocks only if at least one of
+    // the listed pickups is in inventory (vs requires which demands
+    // all). Used today by the egg take, which accepts a lullaby scroll,
+    // a rare gem, or a built music box.
+    const requiresAny = choice.requires_any ?? [];
+    if (requiresAny.length > 0) {
+      const hasAny = requiresAny.some((r) => inventory.includes(r));
+      if (!hasAny) {
+        const names = requiresAny
+          .map((id) => getPickup(id)?.label ?? ASSETS_BY_ID[id]?.alt ?? id.replace(/_/g, " "))
+          .join(", ");
+        speakOracle({
+          text: `You need one of these first: ${names}.`,
+          kind: "hint",
+        });
+        return;
+      }
     }
     // B-014 economy: coin gate. Same shape as `requires` but on the coins
     // counter. Tells the kid plainly so it feels like a price tag, not a
@@ -729,6 +840,27 @@ export function StoryPlayer({
     if (choice.consumes && choice.consumes.length > 0) {
       const removeSet = new Set(choice.consumes);
       setInventory((inv) => inv.filter((id) => !removeSet.has(id)));
+      // B-019: when a built item is consumed, look up the build target
+      // in builds-catalog and apply the level-tier flags (if defined)
+      // for the recorded build level. Handles the music box -> sang_lullaby
+      // / composer_masterwork / music_box_basic mapping.
+      for (const consumedId of choice.consumes) {
+        const target = BUILD_TARGETS_BY_PICKUP_ID[consumedId];
+        if (!target?.consume_level_flags) continue;
+        const level = builtLevels[consumedId] ?? 1;
+        const tier = target.consume_level_flags.find(
+          (t) => level >= t.min_level && level <= t.max_level
+        );
+        if (!tier) continue;
+        for (const flag of tier.flags) {
+          onSetFlag(flag, true);
+        }
+      }
+      setBuiltLevels((prev) => {
+        const next = { ...prev };
+        for (const id of choice.consumes ?? []) delete next[id];
+        return next;
+      });
     }
     // Adventure slice: grant pickups (e.g. take_egg grants dragons_egg).
     if (choice.grants && choice.grants.length > 0) {
@@ -840,6 +972,66 @@ export function StoryPlayer({
 
   const remainingPickups = (scene.pickups ?? []).filter(
     (p) => !(pickedPerScene[scene.id] ?? []).includes(p)
+  );
+
+  // B-019: Supreme Shop buy handler. Decrements coins by the price,
+  // adds the material to inventory (idempotent: stacking the same
+  // material twice in inventory is allowed because the BuildPanel reads
+  // counts off the array), plays the coin chime, and confirms via the
+  // Oracle bus.
+  const buyMaterial = useCallback(
+    (pickupId: string, price: number) => {
+      if (!counters || !counterDefs || !onCountersChange) return;
+      const coinsDef = counterDefs.find((d) => d.id === "coins");
+      if (!coinsDef) return;
+      const current = counters.coins ?? 0;
+      if (current < price) return;
+      onCountersChange({
+        ...counters,
+        coins: Math.max(0, current - price),
+      });
+      const meta = getPickup(pickupId);
+      setInventory((inv) => [...inv, pickupId]);
+      playChing();
+      if (meta) {
+        speakOracle({
+          text: `You buy a ${meta.label.toLowerCase()}.`,
+          kind: "discovery",
+        });
+      }
+    },
+    [counters, counterDefs, onCountersChange]
+  );
+
+  // B-019: Skills & Build handler. Removes the required materials from
+  // inventory (one of each), records the build level keyed by the
+  // built_<target> pickup id, adds the built pickup to inventory, and
+  // speaks a level-tuned feedback line. Builder XP is the running sum
+  // of every build's level.
+  const handleBuild = useCallback(
+    (result: BuildResult) => {
+      const consumeOnce = (inv: string[]) => {
+        const next = inv.slice();
+        for (const id of result.consumes) {
+          const idx = next.indexOf(id);
+          if (idx >= 0) next.splice(idx, 1);
+        }
+        next.push(result.pickupId);
+        return next;
+      };
+      setInventory(consumeOnce);
+      setBuiltLevels((prev) => ({ ...prev, [result.pickupId]: result.level }));
+      setBuilderXp((xp) => xp + result.level);
+      const target = BUILD_TARGETS_BY_PICKUP_ID[result.pickupId];
+      const label = target?.label ?? "build";
+      const line = buildFeedbackLine(label, result.level);
+      playChing();
+      speakOracle({
+        text: `You built a level ${result.level} ${label}. ${line}`,
+        kind: "discovery",
+      });
+    },
+    []
   );
 
   // B-018: Ask Oracle handler. Lifted out of the inline button (which is
@@ -1052,15 +1244,23 @@ export function StoryPlayer({
               scene.choices.map((choice, i) => {
                 const required = choice.requires ?? [];
                 const missing = required.filter((r) => !inventory.includes(r));
+                const requiresAny = choice.requires_any ?? [];
+                const lacksAny =
+                  requiresAny.length > 0 &&
+                  !requiresAny.some((r) => inventory.includes(r));
                 const coinCost = choice.coin_cost ?? 0;
                 const coinsAvailable = counters?.coins ?? 0;
                 const coinsShort = coinCost > 0 && coinsAvailable < coinCost;
-                const locked = missing.length > 0 || coinsShort;
+                const locked = missing.length > 0 || coinsShort || lacksAny;
                 let lockedHint: string | undefined;
                 if (missing.length > 0) {
                   lockedHint = `Find ${missing
-                    .map((id) => ASSETS_BY_ID[id]?.alt ?? id)
+                    .map((id) => ASSETS_BY_ID[id]?.alt ?? getPickup(id)?.label ?? id)
                     .join(" + ")} first`;
+                } else if (lacksAny) {
+                  lockedHint = `Need one: ${requiresAny
+                    .map((id) => getPickup(id)?.label ?? ASSETS_BY_ID[id]?.alt ?? id)
+                    .join(", ")}`;
                 } else if (coinsShort) {
                   lockedHint = `Need ${coinCost} coins (you have ${coinsAvailable})`;
                 }
@@ -1127,19 +1327,20 @@ export function StoryPlayer({
         )}
       </div>
 
-      {/* B-018: Map button. Anchored to the bottom-left so it does not
-          collide with the audio/counter/inventory column at top-left or
-          the pickup glows at left/right 22%, bottom 48%. Renders the
-          MapOverlay on tap. */}
-      <button
-        type="button"
-        onClick={() => setMapOpen(true)}
-        aria-label="Open realm map"
-        className="fixed bottom-3 left-3 z-30 px-3 py-2 rounded-lg bg-white/90 text-amber-900 font-semibold text-sm shadow flex items-center gap-1.5 hover:bg-white"
-      >
-        <span aria-hidden>🗺️</span>
-        <span>Map</span>
-      </button>
+      {/* B-019: left button rail replaces the standalone Map button.
+          Hosts Map (B-018), Hints (this batch), Supreme Shop, and
+          Skills & Build. Hidden on ending scenes so the kid does not
+          see panels behind the realm card. */}
+      {!isEnding && (
+        <LeftRail
+          onOpenMap={() => setMapOpen(true)}
+          onOpenHints={() => setHintsOpen(true)}
+          onOpenShop={() => setShopOpen(true)}
+          onOpenBuild={() => setBuildOpen(true)}
+          hintsCount={heardHints.length}
+          builderTier={builderTier(builderXp)}
+        />
+      )}
 
       {mapOpen && (
         <MapOverlay
@@ -1147,6 +1348,32 @@ export function StoryPlayer({
           currentSceneId={scene.id}
           visited={visited}
           onClose={() => setMapOpen(false)}
+        />
+      )}
+
+      {hintsOpen && (
+        <HintsPanel
+          hints={heardHints}
+          onClose={() => setHintsOpen(false)}
+        />
+      )}
+
+      {shopOpen && counters && (
+        <SupremeShop
+          coins={counters.coins ?? 0}
+          onBuy={buyMaterial}
+          onClose={() => setShopOpen(false)}
+        />
+      )}
+
+      {buildOpen && (
+        <BuildPanel
+          inventory={inventory}
+          builderXp={builderXp}
+          onBuild={(result) => {
+            handleBuild(result);
+          }}
+          onClose={() => setBuildOpen(false)}
         />
       )}
 

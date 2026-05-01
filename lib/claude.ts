@@ -17,6 +17,7 @@ import {
 } from "@/lib/themes-catalog";
 import { CHARACTERS_BY_ID, type Character } from "@/lib/characters-catalog";
 import { PICKUPS_BY_ID } from "@/lib/pickups-catalog";
+import type { CounterDef } from "@/lib/counters";
 
 // B-011 scope 6: theme-driven generation context. When ingredients carries
 // theme_id + entry_sub_scene_id (set by the new landing form via
@@ -94,6 +95,34 @@ export type StoryChoice = {
   // "this path leads to the secret ending"). Optional for back-compat with
   // pre-B-010 worlds.
   hint?: string;
+  // Adventure slice: pickup ids removed from inventory after the choice
+  // fires. Default behavior (no consumes) is non-consuming. Used for the
+  // food/water consumption pattern where drinking or eating uses up the
+  // pocket item but rope/sword/lantern are kept.
+  consumes?: string[];
+  // Adventure slice: pickup ids added to inventory after the choice fires.
+  // Used for the dragon chamber where "Take the egg" grants the egg as a
+  // result of the choice (rather than a separate pickup tap).
+  grants?: string[];
+  // Adventure slice: flag set when the choice fires. Boolean only. Used for
+  // the multi-step dragon chamber where "Tend her wound", "Sing the lullaby",
+  // and "Kneel quietly" each set a flag and loop back to the same scene so
+  // narration variants update. Distinct from ChoiceOption.sets_flag, which
+  // is for is_choice_scene two-button decisions.
+  sets_flag?: string;
+  // B-014 economy: choice deducts this many coins from the named coins
+  // counter when it fires. If the kid does not have enough, the choice is
+  // gated the same way `requires` is, with an Oracle hint instead of a hard
+  // unlock. Optional; absent on non-economy choices.
+  coin_cost?: number;
+  // B-014 economy: counters added to (clamped to max) when the choice
+  // fires. Used for market choices that grant food or water in exchange
+  // for a coin_cost.
+  grants_counter?: Record<string, number>;
+  // B-014 economy: counters subtracted from (clamped to 0) when the choice
+  // fires. Used for the thief encounter "Run, drop your purse" choice
+  // which empties coins.
+  consumes_counter?: Record<string, number>;
 };
 
 export type StoryFlag = {
@@ -122,6 +151,34 @@ export type ChoiceOption = {
   goes_to: string;
 };
 
+// Adventure slice: per-scene background variant. First entry whose `when`
+// flag set matches wins. Falls through to the base background_id. Mirrors
+// the shape of NarrationVariant but for visual swap (hungry wizard art,
+// thirsty wizard art, etc).
+export type BackgroundVariant = {
+  when: Record<string, boolean>;
+  background_id: string;
+};
+
+// Adventure slice: scripted Oracle dialogue shown at the start of an
+// adventure. Each line is delivered via speakOracle in sequence; kid taps
+// to advance. preload_scene_ids fires <Image>.src for each id while the
+// dialogue plays so the next scenes are already cached. background_id is
+// the courtyard image rendered behind the dialogue overlay.
+export type Prologue = {
+  background_id: string;
+  oracle_lines: string[];
+  preload_scene_ids: string[];
+};
+
+// Adventure slice: pre-pick UI shown after the prologue. Kid picks
+// required_count items from candidates. Items land in inventory before
+// scene 1 begins.
+export type StarterChoiceSet = {
+  candidates: string[];
+  required_count: number;
+};
+
 export type StoryScene = {
   id: string;
   title: string;
@@ -141,6 +198,23 @@ export type StoryScene = {
   // setting input, Claude returns an inline SVG per scene as a fallback. When
   // present, renderers prefer this over the asset-library lookup.
   inline_svg?: string;
+  // Adventure slice: counter ticks applied on first scene entry per
+  // playthrough. Keys are counter ids (food, water). Values are subtracted
+  // from the running counter, clamped at 0.
+  counter_tick?: Record<string, number>;
+  // Adventure slice: counter replenishments applied on first scene entry.
+  // Values are added to the running counter, clamped at the counter's max.
+  // Used at riverbank (water +max), cave shortcut (food cache).
+  replenish?: Record<string, number>;
+  // Adventure slice: scene-level background swap based on flag state. First
+  // matching variant wins; falls through to background_id. Used for the
+  // hungry/thirsty wizard variants and the dragon chamber wounded vs calm
+  // variants. Mirrors narration_variants pattern.
+  background_variants?: BackgroundVariant[];
+  // Adventure slice: one-line tip the Oracle says when the kid taps the
+  // Ask Oracle button on this scene. Tone: nudge, not spoiler. Optional;
+  // scenes without a hint get a generic fallback.
+  oracle_hint?: string;
 };
 
 export type HeroLine = {
@@ -169,6 +243,18 @@ export type StoryTree = {
   // for neutrals). Optional for backwards compat with pre-B-010 worlds.
   hero_lines?: HeroLine[];
   hero_voice?: HeroVoiceName;
+  // Adventure slice: hand-authored adventures embed prologue, counter
+  // definitions, and starter pick set directly in the tree. PlayClient
+  // reads these to drive the prologue scene, counter bar, and pre-game
+  // item picker. Claude-generated trees never set these fields, so the
+  // existing prologue/counter UX kicks in only for adventures.
+  prologue?: Prologue;
+  counter_defs?: CounterDef[];
+  starter_choices?: StarterChoiceSet;
+  // Adventure slice: how many times the kid can tap "Ask the Oracle" per
+  // playthrough. When > 0, the Ask Oracle button renders during play.
+  // Resets on Play Again via the StoryPlayer remount.
+  oracle_hint_budget?: number;
 };
 
 export type GeneratedWorld = {
@@ -202,9 +288,8 @@ export async function generateWorld(
       const story = parseStoryResponse(text, ingredients, level);
       return { title: story.title, story };
     } catch (secondErr) {
-      console.error("StoryTree generation failed twice, using fallback", secondErr);
-      const fallback = defaultStory(ingredients);
-      return { title: fallback.title, story: fallback };
+      console.error("StoryTree generation failed twice", secondErr);
+      throw secondErr;
     }
   }
 }

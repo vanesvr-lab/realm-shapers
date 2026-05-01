@@ -15,6 +15,10 @@ export type Pickup = {
   label: string;
   description: string;
   icon_path: string;
+  // B-014 economy: when set, picking up this item adds coin_value coins to
+  // the coins counter and plays the ching sound, in addition to landing in
+  // inventory as a trophy. Existing non-monetary pickups omit this.
+  coin_value?: number;
 };
 
 export const PICKUPS: Pickup[] = [
@@ -53,6 +57,69 @@ export const PICKUPS: Pickup[] = [
     label: "Dragon's Egg",
     description: "speckled iridescent egg in a nest of soft moss",
     icon_path: "/pickups/dragons_egg.webp",
+  },
+  {
+    id: "sword",
+    label: "Wizard's Sword",
+    description: "slender silver blade with a softly glowing crystal pommel",
+    icon_path: "/pickups/sword.webp",
+  },
+  {
+    id: "water_bottle",
+    label: "Water Bottle",
+    description: "small leather bottle with a wooden cork stopper",
+    icon_path: "/pickups/water_bottle.webp",
+  },
+  {
+    id: "food_ration",
+    label: "Trail Rations",
+    description: "bundle of dried bread and berries wrapped in paper",
+    icon_path: "/pickups/food_ration.webp",
+  },
+  {
+    id: "lantern",
+    label: "Storm Lantern",
+    description: "small brass lantern with a warm orange flame",
+    icon_path: "/pickups/lantern.webp",
+  },
+  {
+    id: "tarnished_medallion",
+    label: "Tarnished Medallion",
+    description: "old bronze medallion with worn engravings of a tower",
+    icon_path: "/pickups/tarnished_medallion.webp",
+  },
+  {
+    id: "wood_logs",
+    label: "Wood Logs",
+    description: "bundle of straight pine logs, good for building",
+    icon_path: "/pickups/wood_logs.webp",
+  },
+  {
+    id: "coin_pouch",
+    label: "Coin Pouch",
+    description: "small leather pouch jingling with coins",
+    icon_path: "/pickups/coin_pouch.webp",
+    coin_value: 50,
+  },
+  {
+    id: "treasure_chest",
+    label: "Treasure Chest",
+    description: "small wooden chest with brass clasps, full of coins",
+    icon_path: "/pickups/treasure_chest.webp",
+    coin_value: 150,
+  },
+  {
+    id: "rare_gem",
+    label: "Rare Gem",
+    description: "a flawless cut gem, larger than a thumbnail, glowing softly",
+    icon_path: "/pickups/rare_gem.webp",
+    coin_value: 200,
+  },
+  {
+    id: "glowstone",
+    label: "Glowstone",
+    description: "a smooth crystal that glows with steady warm light",
+    icon_path: "/pickups/glowstone.webp",
   },
 ];
 

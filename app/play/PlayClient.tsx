@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -11,9 +12,13 @@ import { SceneEditor, type EditorSnapshot } from "@/components/SceneEditor";
 import { StoryPlayer, type GameplayEvent } from "@/components/StoryPlayer";
 import { SaveYourWorldsModal } from "@/components/SaveYourWorldsModal";
 import { AchievementToast } from "@/components/AchievementToast";
+import { OraclePrologue } from "@/components/OraclePrologue";
+import { StarterPicker } from "@/components/StarterPicker";
 import type { FlagState } from "@/lib/flags";
 import { setFlag } from "@/lib/flags";
 import { flagTitleSuffix } from "@/lib/flag-titles";
+import { resolveBackgroundUrl } from "@/lib/background-resolver";
+import { initialCounters, type CounterState } from "@/lib/counters";
 
 const CeremonyReveal = dynamic(
   () => import("@/components/CeremonyReveal").then((m) => m.CeremonyReveal),
@@ -54,11 +59,22 @@ export function PlayClient({
   const [goDeeperState, setGoDeeperState] = useState<{ loading: boolean; error: string | null }>(
     { loading: false, error: null }
   );
+  // Adventure slice: bumped each time the kid taps Play Again so StoryPlayer
+  // remounts with fresh internal state (inventory, visited, ticked scenes,
+  // completedRef). Without this, the second ending suppresses onComplete
+  // because completedRef stays true across replays.
+  const [replayCount, setReplayCount] = useState<number>(0);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [mode, setMode] = useState<"edit" | "play">("edit");
+  // Adventure slice: hand-authored adventures (story.prologue is set) skip
+  // the ceremony reveal, the SceneEditor, and start in the prologue / starter
+  // pick flow before mounting StoryPlayer. isAdventure is the single switch.
+  const isAdventure = !!story.prologue;
+  const [mode, setMode] = useState<"edit" | "play">(isAdventure ? "play" : "edit");
   const [showSave, setShowSave] = useState(false);
-  const [showCeremony, setShowCeremony] = useState(searchParams.get("ceremony") === "1");
+  const [showCeremony, setShowCeremony] = useState(
+    !isAdventure && searchParams.get("ceremony") === "1"
+  );
   const [editorSnapshot, setEditorSnapshot] = useState<EditorSnapshot>({
     propsPlaced: story.scenes[0]?.default_props.length ?? 0,
     characterId: story.default_character_id,
@@ -72,8 +88,14 @@ export function PlayClient({
   } | null>(null);
   const [toastQueue, setToastQueue] = useState<AchievementDef[]>(initialUnlocked);
   const flagsKey = `realm-shapers:flags:${worldId}`;
-  const [flags, setFlags] = useState<FlagState>(() => {
-    if (typeof window === "undefined") return {};
+  // Initial flag state must match SSR: empty on both server and client first
+  // render. We hydrate from sessionStorage in a post-mount effect to avoid
+  // the React hydration mismatch when the kid refreshes mid-play with
+  // stored flags.
+  const [flags, setFlags] = useState<FlagState>({});
+  const [hydrated, setHydrated] = useState<boolean>(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     try {
       const raw = sessionStorage.getItem(flagsKey);
       if (raw) {
@@ -83,26 +105,110 @@ export function PlayClient({
           for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
             if (typeof v === "boolean") out[k] = v;
           }
-          return out;
+          if (Object.keys(out).length > 0) setFlags(out);
         }
       }
     } catch {
       // ignore corrupted state
     }
-    return {};
-  });
+    setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Persist flag state per world so refresh mid-playthrough resumes; clear
-  // any other world's flags on entry. Switching worlds (different worldId)
-  // remounts this component and starts with that world's stored flags only.
+  // Persist flag state per world so refresh mid-playthrough resumes. Skip
+  // until hydrated so the empty initial state does not clobber stored
+  // values before the hydration effect has a chance to read them.
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!hydrated) return;
     try {
       sessionStorage.setItem(flagsKey, JSON.stringify(flags));
     } catch {
       // ignore quota
     }
-  }, [flagsKey, flags]);
+  }, [flagsKey, flags, hydrated]);
+
+  // Adventure slice: prologue + starter + counter state, all keyed off
+  // worldId. Initial values match SSR (defaults). We hydrate from
+  // sessionStorage in the same post-mount effect that hydrates flags, then
+  // re-render with the stored values. This avoids hydration mismatches
+  // when the kid refreshes mid-play.
+  const prologueKey = `realm-shapers:prologue-shown:${worldId}`;
+  const starterPickedKey = `realm-shapers:starter-picked:${worldId}`;
+  const starterInvKey = `realm-shapers:starter-inv:${worldId}`;
+  const countersKey = `realm-shapers:counters:${worldId}`;
+  const counterDefs = story.counter_defs ?? [];
+  const [prologueDone, setPrologueDone] = useState<boolean>(false);
+  const [starterInventory, setStarterInventory] = useState<string[]>([]);
+  const [starterPicked, setStarterPicked] = useState<boolean>(false);
+  const [counters, setCounters] = useState<CounterState>(() =>
+    counterDefs.length > 0 ? initialCounters(counterDefs) : {}
+  );
+  // Hydrate adventure state from sessionStorage after mount.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (sessionStorage.getItem(prologueKey) === "1") setPrologueDone(true);
+      if (sessionStorage.getItem(starterPickedKey) === "1") setStarterPicked(true);
+      const invRaw = sessionStorage.getItem(starterInvKey);
+      if (invRaw) {
+        const parsed = JSON.parse(invRaw) as unknown;
+        if (Array.isArray(parsed) && parsed.every((s) => typeof s === "string")) {
+          setStarterInventory(parsed as string[]);
+        }
+      }
+      if (counterDefs.length > 0) {
+        const cRaw = sessionStorage.getItem(countersKey);
+        if (cRaw) {
+          const parsed = JSON.parse(cRaw) as unknown;
+          if (parsed && typeof parsed === "object") {
+            const out: CounterState = {};
+            for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+              if (typeof v === "number") out[k] = v;
+            }
+            for (const def of counterDefs) {
+              if (!(def.id in out)) out[def.id] = def.start_at ?? def.max;
+            }
+            setCounters(out);
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Persist counter state. Skip until hydrated.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!hydrated) return;
+    if (counterDefs.length === 0) return;
+    try {
+      sessionStorage.setItem(countersKey, JSON.stringify(counters));
+    } catch {
+      // ignore
+    }
+  }, [countersKey, counters, counterDefs.length, hydrated]);
+  // Image preload during the prologue: as soon as the kid lands on /play
+  // with an adventure, fire <Image>.src for each preload_scene_id so the
+  // first scenes are cached before the StarterPicker confirms.
+  useEffect(() => {
+    if (!isAdventure || !story.prologue) return;
+    if (typeof window === "undefined") return;
+    const sceneById = new Map(story.scenes.map((s) => [s.id, s]));
+    const urls: string[] = [];
+    for (const sceneId of story.prologue.preload_scene_ids) {
+      const scene = sceneById.get(sceneId);
+      if (!scene) continue;
+      const url = resolveBackgroundUrl(scene.background_id);
+      if (url) urls.push(url);
+    }
+    for (const url of urls) {
+      const img = new window.Image();
+      img.src = url;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSetFlag = useCallback((id: string, value: boolean) => {
     setFlags((prev) => setFlag(prev, id, value));
@@ -168,6 +274,34 @@ export function PlayClient({
     setMode("play");
   }
 
+  // Adventure slice: handlers for the prologue and starter pick stages.
+  const handlePrologueComplete = useCallback(() => {
+    setPrologueDone(true);
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem(prologueKey, "1");
+      } catch {
+        // ignore
+      }
+    }
+  }, [prologueKey]);
+
+  const handleStarterConfirm = useCallback(
+    (picked: string[]) => {
+      setStarterInventory(picked);
+      setStarterPicked(true);
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem(starterPickedKey, "1");
+          sessionStorage.setItem(starterInvKey, JSON.stringify(picked));
+        } catch {
+          // ignore
+        }
+      }
+    },
+    [starterPickedKey, starterInvKey]
+  );
+
   function handlePlayerComplete(payload: {
     endingScene: StoryScene;
     scenesVisited: string[];
@@ -195,8 +329,11 @@ export function PlayClient({
 
   function handleReplay() {
     // Replay clears the flag state for this world so endings can diverge on
-    // a fresh run. Inventory and visited-scenes already reset by virtue of
-    // StoryPlayer remounting.
+    // a fresh run. Inventory and visited-scenes reset via the StoryPlayer
+    // remount triggered by bumping replayCount (which is part of the
+    // component key). For adventures, also reset counters back to their max.
+    // Starter inventory + prologue-shown stay so the kid does not redo
+    // those before each retry.
     setFlags({});
     if (typeof window !== "undefined") {
       try {
@@ -205,6 +342,18 @@ export function PlayClient({
         // ignore
       }
     }
+    if (isAdventure && counterDefs.length > 0) {
+      const fresh = initialCounters(counterDefs);
+      setCounters(fresh);
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem(countersKey, JSON.stringify(fresh));
+        } catch {
+          // ignore
+        }
+      }
+    }
+    setReplayCount((c) => c + 1);
     setCompletion(null);
     setMode("edit");
   }
@@ -297,10 +446,13 @@ export function PlayClient({
     };
   }, [generationStatus, worldId]);
 
-  // Fire greeting on first edit-mode mount when not coming straight from ceremony.
+  // Fire greeting on first edit-mode mount when not coming straight from
+  // ceremony. Adventure flows have their own Oracle prologue, so suppress
+  // the editor greeting for them.
   useEffect(() => {
     if (showCeremony) return;
     if (mode !== "edit") return;
+    if (isAdventure) return;
     let cancelled = false;
     (async () => {
       const { speakOracle } = await import("@/lib/oracle-bus");
@@ -362,30 +514,76 @@ export function PlayClient({
         </div>
       )}
 
-      <div className="max-w-5xl mx-auto">
-        <SceneEditor
-          key={`editor-l${level}-${generationStatus}`}
-          worldId={worldId}
-          story={story}
-          initialNarration={narration || story.scenes[0].narration}
-          onPlay={handleEditorPlay}
-          onSnapshotChange={setEditorSnapshot}
-        />
-      </div>
+      {!isAdventure && (
+        <div className="max-w-5xl mx-auto">
+          <SceneEditor
+            key={`editor-l${level}-${generationStatus}`}
+            worldId={worldId}
+            story={story}
+            initialNarration={narration || story.scenes[0].narration}
+            onPlay={handleEditorPlay}
+            onSnapshotChange={setEditorSnapshot}
+          />
+        </div>
+      )}
 
-      {mode === "play" && (
+      {/* Adventure prologue + starter pick. Renders the courtyard background
+          full-bleed behind the dialogue / picker overlays. While these are
+          showing, StoryPlayer is also mounted in the background so its
+          ambient pipeline can warm up; pointer-events on the overlays
+          dominate so the kid only interacts with the prologue UI. */}
+      {isAdventure && story.prologue && (!prologueDone || !starterPicked) && (
+        <div className="fixed inset-0 z-40">
+          {(() => {
+            const url = resolveBackgroundUrl(story.prologue.background_id);
+            return url ? (
+              <Image
+                src={url}
+                alt="Courtyard at dawn"
+                fill
+                unoptimized
+                priority
+                sizes="100vw"
+                className="object-cover"
+              />
+            ) : null;
+          })()}
+        </div>
+      )}
+      {isAdventure && story.prologue && !prologueDone && (
+        <OraclePrologue
+          lines={story.prologue.oracle_lines}
+          onComplete={handlePrologueComplete}
+        />
+      )}
+      {isAdventure && prologueDone && !starterPicked && story.starter_choices && (
+        <StarterPicker
+          candidates={story.starter_choices.candidates}
+          requiredCount={story.starter_choices.required_count}
+          onConfirm={handleStarterConfirm}
+        />
+      )}
+
+      {/* StoryPlayer mounts when the kid is ready to play: either the
+          claude flow's editor "Play" button (mode=play), or the adventure
+          flow once the starter has been confirmed. */}
+      {((mode === "play" && !isAdventure) || (isAdventure && starterPicked)) && (
         <StoryPlayer
-          key={`player-l${level}-${generationStatus}`}
+          key={`player-l${level}-${generationStatus}-r${replayCount}`}
           worldId={worldId}
           story={story}
           flags={flags}
-          heroCharacterId={editorSnapshot.characterId}
-          editorScene1PropIds={editorSnapshot.propIds}
+          heroCharacterId={isAdventure ? story.default_character_id : editorSnapshot.characterId}
+          editorScene1PropIds={isAdventure ? undefined : editorSnapshot.propIds}
           onSetFlag={handleSetFlag}
-          onExit={handleExitPlay}
+          onExit={isAdventure ? undefined : handleExitPlay}
           onQuitRealm={() => router.push("/")}
           onComplete={handlePlayerComplete}
           onEvent={checkAchievements}
+          initialInventory={isAdventure ? starterInventory : undefined}
+          counters={counterDefs.length > 0 ? counters : undefined}
+          counterDefs={counterDefs.length > 0 ? counterDefs : undefined}
+          onCountersChange={counterDefs.length > 0 ? setCounters : undefined}
         />
       )}
 
@@ -415,14 +613,16 @@ export function PlayClient({
                 flagTitleSuffix={completion.flagSuffix}
               />
               <div className="flex flex-wrap gap-2 justify-center">
-                <button
-                  type="button"
-                  onClick={handleGoDeeper}
-                  disabled={goDeeperState.loading}
-                  className="px-4 py-3 rounded-xl bg-purple-700 text-white font-bold shadow hover:bg-purple-800 disabled:opacity-60"
-                >
-                  {goDeeperState.loading ? "Going deeper..." : "🌀 Go Deeper"}
-                </button>
+                {!isAdventure && (
+                  <button
+                    type="button"
+                    onClick={handleGoDeeper}
+                    disabled={goDeeperState.loading}
+                    className="px-4 py-3 rounded-xl bg-purple-700 text-white font-bold shadow hover:bg-purple-800 disabled:opacity-60"
+                  >
+                    {goDeeperState.loading ? "Going deeper..." : "🌀 Go Deeper"}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleReplay}
@@ -430,13 +630,15 @@ export function PlayClient({
                 >
                   Play again
                 </button>
-                <button
-                  type="button"
-                  onClick={handleExitPlay}
-                  className="px-4 py-3 rounded-xl bg-amber-100 text-amber-900 font-semibold hover:bg-amber-200"
-                >
-                  Edit my scene
-                </button>
+                {!isAdventure && (
+                  <button
+                    type="button"
+                    onClick={handleExitPlay}
+                    className="px-4 py-3 rounded-xl bg-amber-100 text-amber-900 font-semibold hover:bg-amber-200"
+                  >
+                    Edit my scene
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setShowSave(true)}
@@ -457,7 +659,7 @@ export function PlayClient({
                   🚪 Exit
                 </Link>
               </div>
-              {goDeeperState.error && (
+              {!isAdventure && goDeeperState.error && (
                 <p className="text-xs text-rose-200 bg-rose-900/40 rounded px-3 py-1 max-w-md text-center">
                   {goDeeperState.error}
                 </p>

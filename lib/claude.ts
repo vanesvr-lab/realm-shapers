@@ -356,7 +356,7 @@ You must compose a branching story tree of ${isDeep ? "10 to 12" : "8 to 10"} sc
 - ${isDeep ? "7 to 9" : "5 to 7"} main path scenes that move toward 2 to 3 endings.
 - 2 to 3 side quest scenes that branch off the main path. Each side quest scene MUST set "is_side_quest": true. A side quest gives the player a reward (a unique pickup or a special moment) and then either points back to the main path or leads to the secret ending.
 - 2 to 3 of the scenes are endings: their "choices" array is empty.
-${isDeep ? "- Every non-ending non-choice scene MUST have EXACTLY 5 outbound choices (instead of the usual 2-3). The kid wants more options to weigh.\n- The tree MUST contain at least 5 DISTINCT pickup ids across all scenes (instead of 3-5). The ending will be gated client-side behind 2 of those pickups, so the kid must hunt." : ""}
+${isDeep ? "- Every non-ending non-choice scene MUST have EXACTLY 5 outbound choices (instead of the usual 3). The kid wants more options to weigh.\n- The tree MUST contain at least 5 DISTINCT pickup ids across all scenes (instead of 3-5). The ending will be gated client-side behind 2 of those pickups, so the kid must hunt." : "- Every non-ending non-choice scene MUST have EXACTLY 3 outbound choices."}
 
 TREE SHAPE RULE (CRITICAL). Order the entries in the "scenes" array by narrative depth. The first two entries (index 0 and index 1) MUST be exploration / collect scenes that progress toward the goal. They MUST have non-empty "choices" and MUST NOT be endings or choice scenes. Ending scenes (choices: []) MUST appear at index 4 or later in the scenes array. This prevents a kid from accidentally finishing in 2 or 3 clicks before any choice has felt earned.
 
@@ -465,8 +465,8 @@ Hard rules:
 - starting_scene_id MUST match the id of one main (non side quest, non choice scene) scene at index 0 or index 1 in the scenes array.
 - 2 to 3 of the scenes MUST be endings: their choices array is empty.
 - Ending scenes (empty choices) MUST appear at index 4 or later in the scenes array. Indices 0-3 MUST NOT be endings.
-- Indices 0 and 1 MUST NOT be choice scenes. They MUST have ${isDeep ? "exactly 5" : "2 or 3"} normal "choices".
-- A non-ending, non-choice scene MUST have exactly ${isDeep ? "5" : "2 or 3"} normal "choices" entries.${isDeep ? "\n- The tree MUST contain at least 5 DISTINCT pickup ids across all scenes." : ""}
+- Indices 0 and 1 MUST NOT be choice scenes. They MUST have exactly ${isDeep ? "5" : "3"} normal "choices".
+- A non-ending, non-choice scene MUST have exactly ${isDeep ? "5" : "3"} normal "choices" entries.${isDeep ? "\n- The tree MUST contain at least 5 DISTINCT pickup ids across all scenes." : ""}
 - A choice scene (is_choice_scene true) MUST have "choices": [] and exactly 2 "choice_options".
 - An ending scene (no normal choices) MUST NOT also be a choice scene.
 - A choice scene MUST NOT be the starting scene and MUST NOT be an ending.
@@ -582,7 +582,10 @@ function parseStoryResponse(
   const isDeep = level >= 2;
   const minScenes = isDeep ? 10 : 8;
   const maxScenes = isDeep ? 12 : 10;
-  const requiredChoiceCount = isDeep ? 5 : null; // null = legacy 2-or-3
+  // B-012 scope 6: level 1 bumps from "2 or 3" to exactly 3 outbound choices.
+  // Level 2 (Go Deeper) stays at 5. Older worlds (re-parsed from DB) ignore
+  // the strict count because parseStoryResponse runs only at generation time.
+  const requiredChoiceCount = isDeep ? 5 : 3;
   // B-011: theme-driven worlds validate background ids against the picked
   // theme's sub-scene catalog and enforce adjacency for scenes 2-4. Legacy
   // worlds (no theme_id in ingredients) keep the asset-library validation.

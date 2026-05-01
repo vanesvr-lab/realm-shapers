@@ -144,6 +144,8 @@ const WOOD_GATHERING: StoryScene = {
       requires: ["sword"],
       grants: ["wood_logs"],
       hint: "swing steady; the wood splits clean",
+      oracle_hint:
+        "Wood splits clean for a sharp edge. A blade is something a wizard packs from home.",
     },
     {
       id: "back_to_river",
@@ -180,6 +182,8 @@ const RIVER_CROSSING: StoryScene = {
       interactable_kind: "path",
       requires: ["wood_logs", "climbing_rope"],
       hint: "lash logs to rope; ride the current across",
+      oracle_hint:
+        "Rafts ask for two things: wood from the fallen pine off the trail, and rope from where the river bends.",
     },
     {
       id: "back_to_river",
@@ -216,6 +220,8 @@ const DARK_CAVERN: StoryScene = {
       interactable_kind: "door",
       requires: ["lantern"],
       hint: "the flame shows the way",
+      oracle_hint:
+        "Light is something you carry from home. The cave will not give it. Step back and try the long road instead.",
     },
     {
       id: "stumble_back",
@@ -253,6 +259,8 @@ const LAVA_RIVER_CROSSING: StoryScene = {
       interactable_kind: "path",
       requires: ["wood_logs", "climbing_rope"],
       hint: "wood smolders but holds; ride the current",
+      oracle_hint:
+        "Wood floats even on lava when lashed with rope. Or, if you have steel, the obsidian breaks into steps.",
     },
     {
       id: "obsidian_steps",
@@ -261,6 +269,8 @@ const LAVA_RIVER_CROSSING: StoryScene = {
       interactable_kind: "path",
       requires: ["sword"],
       hint: "lever the rocks; jump across",
+      oracle_hint:
+        "Steel pries the cooled stones into a path. A blade is something a wizard packs from home.",
     },
     {
       id: "back_to_volcano",
@@ -302,6 +312,8 @@ const FOREST_PATH: StoryScene = {
       interactable_kind: "path",
       requires: ["climbing_rope"],
       hint: "shortcut, but you will need the rope",
+      oracle_hint:
+        "Coils of rope sometimes wash up where the river bends. Listen for the water and walk that way.",
     },
     {
       id: "go_riverbank",
@@ -394,6 +406,8 @@ const RIVERBANK: StoryScene = {
       interactable_kind: "path",
       requires: ["climbing_rope"],
       hint: "rope and a steady grip; treasure tucked above",
+      oracle_hint:
+        "Climbs ask for rope. A coil from home, or a coil left where the river bends.",
     },
     {
       id: "fisher_market",
@@ -589,6 +603,8 @@ const CAVE_SHORTCUT: StoryScene = {
       interactable_kind: "door",
       requires: ["lantern"],
       hint: "lantern light shows the way; cool blue glow ahead",
+      oracle_hint:
+        "Light reveals the crystals. Without it, the passage stays a quiet dark.",
     },
     {
       id: "hermit_market",
@@ -667,6 +683,8 @@ const DRAGON_CHAMBER: StoryScene = {
       consumes: ["food_ration"],
       sets_flag: FLAG.tended_wound,
       hint: "she is hurt, perhaps you can help",
+      oracle_hint:
+        "She is hungry as well as hurt. A meal in your pocket can steady her.",
     },
     {
       id: "sing_lullaby",
@@ -676,6 +694,8 @@ const DRAGON_CHAMBER: StoryScene = {
       requires: ["dragons_lullaby"],
       sets_flag: FLAG.sang_lullaby,
       hint: "the old song might soothe her",
+      oracle_hint:
+        "An old song rests in scrolls left in cool, quiet caves. Take the path that smells of stone.",
     },
     {
       id: "answer_riddle",
@@ -800,6 +820,8 @@ const WOLF_ENCOUNTER: StoryScene = {
       interactable_kind: "creature",
       requires: ["sword"],
       hint: "the wolf yields to a clean strike",
+      oracle_hint:
+        "Steel calms the wolf. A blade rests at home for those who packed it.",
     },
     {
       id: "feed_wolf",
@@ -809,6 +831,8 @@ const WOLF_ENCOUNTER: StoryScene = {
       requires: ["food_ration"],
       consumes: ["food_ration"],
       hint: "the wolf takes the meal and lets you pass",
+      oracle_hint:
+        "A hungry wolf is gentler with a meal in its mouth. Trail rations win quiet.",
     },
     {
       id: "bribe_wolf",
@@ -886,6 +910,8 @@ const EAGLE_NEST: StoryScene = {
       interactable_kind: "creature",
       requires: ["sword"],
       hint: "the eagle backs off; you press on toward the volcano",
+      oracle_hint:
+        "Steel makes the eagle back away. Or you can wait quietly until she leaves.",
     },
     {
       id: "back_to_cliff",
@@ -984,6 +1010,8 @@ const DRAGON_CUBS: StoryScene = {
       requires: ["food_ration"],
       consumes: ["food_ration"],
       hint: "the cubs forget you, focused on the meal",
+      oracle_hint:
+        "Cubs forget you when they are eating. A ration in the pocket is a quiet pass.",
     },
     {
       id: "bribe_cubs",
@@ -1071,6 +1099,8 @@ const THIEF_ENCOUNTER: StoryScene = {
       interactable_kind: "creature",
       requires: ["sword"],
       hint: "the traveler flees",
+      oracle_hint:
+        "Steel makes the toll lighter. Without a blade, you choose between paying and running.",
     },
     {
       id: "run_dropped_purse",

@@ -123,6 +123,13 @@ export type StoryChoice = {
   // fires. Used for the thief encounter "Run, drop your purse" choice
   // which empties coins.
   consumes_counter?: Record<string, number>;
+  // B-018: per-gate location hint. When the kid taps Ask Oracle on a
+  // scene where they are gated on this choice (missing one or more
+  // `requires` pickups), this hint is preferred over the scene-level
+  // oracle_hint. Style: theme cue ("look where the water runs slow"),
+  // not a literal scene name. Optional; absent on choices that are not
+  // worth surfacing as a clue.
+  oracle_hint?: string;
 };
 
 export type StoryFlag = {

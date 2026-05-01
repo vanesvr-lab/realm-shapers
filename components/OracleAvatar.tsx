@@ -3,6 +3,11 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { hasUserInteracted, markUserInteraction, subscribeOracle, type OracleLine } from "@/lib/oracle-bus";
+import {
+  getOraclePin,
+  subscribeOraclePin,
+  type OraclePinState,
+} from "@/lib/oracle-pin-bus";
 
 const MUTE_KEY = "realm-shapers:oracle-muted";
 const BUBBLE_DURATION_MS = 6500;
@@ -12,6 +17,10 @@ export function OracleAvatar() {
   const [muted, setMuted] = useState(false);
   const [bubble, setBubble] = useState<string | null>(null);
   const [pathname, setPathname] = useState<string>("/");
+  // B-018: when StoryPlayer is mounted in the active realm, it pushes its
+  // Ask Oracle state here. The avatar then renders a hint-count badge and
+  // tapping calls the realm's hint handler instead of the default greet.
+  const [pinState, setPinState] = useState<OraclePinState | null>(() => getOraclePin());
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastTextRef = useRef<string>("");
   const lastFiredAtRef = useRef<number>(0);
@@ -92,6 +101,10 @@ export function OracleAvatar() {
     });
   }, [speak]);
 
+  useEffect(() => {
+    return subscribeOraclePin((state) => setPinState(state));
+  }, []);
+
   function toggleMute() {
     setMuted((m) => {
       const next = !m;
@@ -132,11 +145,27 @@ export function OracleAvatar() {
           )}
         </AnimatePresence>
 
-        <div className="flex flex-col items-center gap-1">
+        <div className="relative flex flex-col items-center gap-1">
           <motion.button
             type="button"
-            onClick={() => speak({ text: "I am the Oracle. Tap me any time you wish to hear me again.", kind: "greet" })}
-            aria-label="The Oracle"
+            onClick={() => {
+              // B-018: in play mode, the StoryPlayer registers a hint
+              // handler here. Tapping the avatar triggers Ask Oracle on
+              // the current scene instead of the default greeting.
+              if (pinState) {
+                pinState.onTap();
+                return;
+              }
+              void speak({
+                text: "I am the Oracle. Tap me any time you wish to hear me again.",
+                kind: "greet",
+              });
+            }}
+            aria-label={
+              pinState && pinState.hintBudget > 0
+                ? `Ask Oracle, ${pinState.hintsLeft} hint${pinState.hintsLeft === 1 ? "" : "s"} left`
+                : "The Oracle"
+            }
             className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden shadow-xl ring-2 ring-amber-200 bg-white"
             animate={{ y: [0, -3, 0, 2, 0] }}
             transition={{ repeat: Infinity, duration: 5, ease: "easeInOut" }}
@@ -151,6 +180,14 @@ export function OracleAvatar() {
             />
             <div className="absolute inset-0 rounded-full ring-1 ring-amber-100/60" />
           </motion.button>
+          {pinState && pinState.hintBudget > 0 && pinState.hintsLeft > 0 && (
+            <span
+              className="absolute -top-1 -right-1 min-w-[22px] h-[22px] px-1.5 rounded-full bg-purple-700 text-white text-[11px] font-bold flex items-center justify-center shadow-md ring-2 ring-white pointer-events-none"
+              aria-hidden
+            >
+              {pinState.hintsLeft}
+            </span>
+          )}
           <button
             type="button"
             onClick={toggleMute}

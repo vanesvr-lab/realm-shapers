@@ -17,7 +17,9 @@ import { CounterBar } from "@/components/CounterBar";
 import { OracleSpeaks } from "@/components/OracleSpeaks";
 import { ChoiceMoment } from "@/components/ChoiceMoment";
 import { HeroAvatar } from "@/components/HeroAvatar";
+import { MapOverlay } from "@/components/MapOverlay";
 import { speakOracle } from "@/lib/oracle-bus";
+import { setOraclePin } from "@/lib/oracle-pin-bus";
 import {
   playAmbient,
   stopAmbient,
@@ -190,6 +192,10 @@ export function StoryPlayer({
   // First tap sets it, second tap on the same id commits, taps elsewhere or
   // outside dismiss it.
   const [previewedInteractableId, setPreviewedInteractableId] = useState<string | null>(null);
+  // B-018: map overlay open/closed state. Open via the on-screen Map
+  // button at left-bottom; closed via the Close button or by tapping
+  // the backdrop / a visited node.
+  const [mapOpen, setMapOpen] = useState(false);
   // B-013: entry video state for sub-scenes that carry an entry_video_path.
   // "playing" → render <video> on top; "ended" → static image only.
   // Plays once per (world_id, scene_id), gated by sessionStorage so back-and-forth
@@ -836,6 +842,71 @@ export function StoryPlayer({
     (p) => !(pickedPerScene[scene.id] ?? []).includes(p)
   );
 
+  // B-018: Ask Oracle handler. Lifted out of the inline button (which is
+  // gone now in favor of the global OracleAvatar pin) so it can be
+  // published to the oracle-pin bus. Resolves the line in three tiers:
+  // 1) the cheapest gated choice the kid is currently locked on (per-gate
+  //    location hint, B-018 part B); 2) the scene-level oracle_hint;
+  // 3) a meaningful generic fallback. Counter only decrements when a real
+  //    line is actually spoken (B-017 part C).
+  const askOracle = useCallback(() => {
+    if ((story.oracle_hint_budget ?? 0) <= 0) return;
+    if (oracleHintsLeft <= 0) {
+      speakOracle({
+        text: "I have told you all I can. The rest is yours to find.",
+        kind: "hint",
+      });
+      return;
+    }
+    type GateCandidate = { hint: string; missingCount: number; order: number };
+    const gateCandidates: GateCandidate[] = [];
+    scene.choices.forEach((choice, order) => {
+      const choiceHint = choice.oracle_hint?.trim();
+      if (!choiceHint) return;
+      const required = choice.requires ?? [];
+      const missing = required.filter((r) => !inventory.includes(r));
+      if (missing.length === 0) return;
+      gateCandidates.push({ hint: choiceHint, missingCount: missing.length, order });
+    });
+    gateCandidates.sort((a, b) =>
+      a.missingCount === b.missingCount
+        ? a.order - b.order
+        : a.missingCount - b.missingCount
+    );
+    const gateHint = gateCandidates[0]?.hint;
+    const sceneHint = scene.oracle_hint?.trim();
+    const fallback = "I have no whisper for you here. Try walking on, and look for the things that gleam.";
+    const lineToSpeak =
+      (gateHint && gateHint.length > 0 && gateHint) ||
+      (sceneHint && sceneHint.length > 0 && sceneHint) ||
+      fallback;
+    if (!lineToSpeak || lineToSpeak.length === 0) return;
+    speakOracle({ text: lineToSpeak, kind: "hint" });
+    setOracleHintsLeft((n) => n - 1);
+  }, [story.oracle_hint_budget, oracleHintsLeft, scene, inventory]);
+
+  // B-018: publish the Ask Oracle state to the oracle-pin bus so the
+  // global OracleAvatar shows the hint badge and routes taps to askOracle.
+  // Cleared on unmount so the avatar reverts to its default greet behavior
+  // outside of play.
+  useEffect(() => {
+    const budget = story.oracle_hint_budget ?? 0;
+    if (budget <= 0) {
+      setOraclePin(null);
+      return () => {
+        setOraclePin(null);
+      };
+    }
+    setOraclePin({
+      hintsLeft: oracleHintsLeft,
+      hintBudget: budget,
+      onTap: askOracle,
+    });
+    return () => {
+      setOraclePin(null);
+    };
+  }, [story.oracle_hint_budget, oracleHintsLeft, askOracle]);
+
   return (
     <div
       className="fixed inset-0 z-40 bg-black flex flex-col"
@@ -1030,46 +1101,9 @@ export function StoryPlayer({
             ↩ Editor
           </button>
         )}
-        {(story.oracle_hint_budget ?? 0) > 0 && (
-          <button
-            type="button"
-            onClick={() => {
-              if (oracleHintsLeft <= 0) {
-                speakOracle({
-                  text: "I have told you all I can. The rest is yours to find.",
-                  kind: "hint",
-                });
-                return;
-              }
-              // B-017: only decrement when we actually speak a real hint.
-              // Empty / whitespace fallback used to silently drop the
-              // counter; now we speak a meaningful default and only spend
-              // a hint when there is a real line to deliver.
-              const sceneHint = scene.oracle_hint?.trim();
-              const fallback = "I have no whisper for you here. Try walking on, and look for the things that gleam.";
-              const lineToSpeak = sceneHint && sceneHint.length > 0 ? sceneHint : fallback;
-              if (lineToSpeak.length === 0) {
-                return;
-              }
-              speakOracle({ text: lineToSpeak, kind: "hint" });
-              setOracleHintsLeft((n) => n - 1);
-            }}
-            disabled={oracleHintsLeft <= 0}
-            className="px-3 py-2 rounded-lg bg-purple-100/95 text-purple-900 font-semibold text-sm shadow flex items-center gap-1 disabled:opacity-50"
-            aria-label={`Ask Oracle, ${oracleHintsLeft} left`}
-            title={
-              oracleHintsLeft > 0
-                ? `Ask the Oracle (${oracleHintsLeft} left)`
-                : "No Oracle hints left"
-            }
-          >
-            <span aria-hidden>🔮</span>
-            <span>
-              Ask Oracle{" "}
-              <span className="text-xs opacity-80">{oracleHintsLeft}</span>
-            </span>
-          </button>
-        )}
+        {/* B-018: the inline Ask Oracle button moved to the global
+            OracleAvatar pin (bottom-right). The pin shows a remaining-hint
+            badge and routes taps through askOracle via the oracle-pin bus. */}
         {AMBIENT_TRACK_BY_BACKGROUND[scene.background_id] && (
           <button
             type="button"
@@ -1092,6 +1126,29 @@ export function StoryPlayer({
           </button>
         )}
       </div>
+
+      {/* B-018: Map button. Anchored to the bottom-left so it does not
+          collide with the audio/counter/inventory column at top-left or
+          the pickup glows at left/right 22%, bottom 48%. Renders the
+          MapOverlay on tap. */}
+      <button
+        type="button"
+        onClick={() => setMapOpen(true)}
+        aria-label="Open realm map"
+        className="fixed bottom-3 left-3 z-30 px-3 py-2 rounded-lg bg-white/90 text-amber-900 font-semibold text-sm shadow flex items-center gap-1.5 hover:bg-white"
+      >
+        <span aria-hidden>🗺️</span>
+        <span>Map</span>
+      </button>
+
+      {mapOpen && (
+        <MapOverlay
+          story={story}
+          currentSceneId={scene.id}
+          visited={visited}
+          onClose={() => setMapOpen(false)}
+        />
+      )}
 
       <AnimatePresence>
         {showQuitConfirm && (

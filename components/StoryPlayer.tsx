@@ -95,8 +95,8 @@ const STRIPPED_ENDING_IDS = new Set<string>([
 // endings get a softer line.
 const STRIPPED_ENDING_LINES: Record<string, string> = {
   ending_success: "You took what wasn't earned. The realm will whisper.",
-  ending_starvation: "The road took more than you brought.",
-  ending_dehydration: "The road took more than you brought.",
+  ending_starvation: "Pack more food. Try again.",
+  ending_dehydration: "Carry more water. Try again.",
   ending_lost: "Some paths fold back on themselves. Try again, kinder.",
 };
 

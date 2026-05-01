@@ -1187,9 +1187,9 @@ const THIEF_ENCOUNTER: StoryScene = {
 
 const ENDING_STARVATION: StoryScene = {
   id: SCENE.ending_starvation,
-  title: "Too Far",
+  title: "Out of Food",
   narration:
-    "You sit down to rest. Just for a moment. The pack is empty. The sky goes purple, then dark. Some journeys end like this. The realm remembers you anyway.",
+    "You ran out of food before the path ran out of road. The realm tugs you home; even brave adventurers must eat. Tap Play Again, and pack heavier next time, or stop at the Supreme Shop on the way through.",
   background_id: BG("ending_starvation"),
   ambient_audio_prompt: "soft wind, faint distant chimes, slow quiet",
   default_props: [],
@@ -1200,9 +1200,9 @@ const ENDING_STARVATION: StoryScene = {
 
 const ENDING_DEHYDRATION: StoryScene = {
   id: SCENE.ending_dehydration,
-  title: "Dry Spring",
+  title: "Out of Water",
   narration:
-    "The spring is cracked and dry. Your bottle is empty. You kneel a long time. The realm goes still around you. The journey rests here.",
+    "Your water bottle ran dry and the next spring was too far. The realm tugs you home; even brave adventurers must drink. Tap Play Again, and stock the Supreme Shop on the way through.",
   background_id: BG("ending_dehydration"),
   ambient_audio_prompt: "very faint wind, dry rustle, slow quiet",
   default_props: [],

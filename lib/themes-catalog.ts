@@ -38,6 +38,10 @@ export type SubScene = {
   // reads this list and emits matching `requires` arrays on the choice
   // leading INTO this sub-scene. Empty/undefined means no gate.
   required_pickups?: string[];
+  // B-021 demo polish: when true, the sub-scene tile renders locked in the
+  // landing form's "where do you start" picker. Used to hide every castle
+  // entry except the dragon-egg quest tile for the demo.
+  locked?: boolean;
 };
 
 export type Theme = {
@@ -46,9 +50,27 @@ export type Theme = {
   description: string;
   thumbnail_path: string;
   sub_scenes: SubScene[];
+  // B-021 demo polish: when true, the theme tile renders grayscale with a
+  // 🔒 overlay and is not selectable. Castle is the only unlocked theme for
+  // the hackathon demo; other themes still appear in the catalog for the
+  // future build-out.
+  locked?: boolean;
 };
 
 const castleSubScenes: SubScene[] = [
+  // B-021 demo polish: the only castle entry point exposed in the demo
+  // landing form. Routes the kid into the Hunt the Dragon's Egg adventure.
+  // Every other castle sub-scene below is locked for the hackathon demo.
+  {
+    id: "castle_dragon_egg_quest",
+    theme: "castle",
+    label: "Collect the Dragon's Egg",
+    description: "the dragon's nest cavern with a single glowing egg",
+    file_path: "/backgrounds/castle/dragon_egg_quest.webp",
+    connects_to: ["castle_drawbridge"],
+    can_be_entry: true,
+    can_be_ending: false,
+  },
   {
     id: "castle_drawbridge",
     theme: "castle",
@@ -62,6 +84,7 @@ const castleSubScenes: SubScene[] = [
     // drawbridge.webp starting frame. Plays once per (world_id, scene_id) in
     // sessionStorage; tap-to-skip; 200ms crossfade to file_path on end.
     entry_video_path: "/backgrounds/castle/drawbridge_entry.mp4",
+    locked: true,
   },
   {
     id: "castle_outer_gate",
@@ -72,6 +95,7 @@ const castleSubScenes: SubScene[] = [
     connects_to: ["castle_drawbridge", "castle_courtyard", "castle_royal_garden"],
     can_be_entry: true,
     can_be_ending: false,
+    locked: true,
   },
   {
     id: "castle_courtyard",
@@ -87,6 +111,7 @@ const castleSubScenes: SubScene[] = [
     ],
     can_be_entry: false,
     can_be_ending: false,
+    locked: true,
   },
   {
     id: "castle_great_hall",
@@ -103,6 +128,7 @@ const castleSubScenes: SubScene[] = [
     ],
     can_be_entry: false,
     can_be_ending: false,
+    locked: true,
   },
   {
     id: "castle_throne_room",
@@ -113,6 +139,7 @@ const castleSubScenes: SubScene[] = [
     connects_to: ["castle_great_hall", "castle_royal_chambers"],
     can_be_entry: false,
     can_be_ending: true,
+    locked: true,
   },
   {
     id: "castle_dungeon",
@@ -124,6 +151,7 @@ const castleSubScenes: SubScene[] = [
     can_be_entry: false,
     can_be_ending: true,
     required_pickups: ["torch"],
+    locked: true,
   },
   {
     id: "castle_kitchen",
@@ -134,6 +162,7 @@ const castleSubScenes: SubScene[] = [
     connects_to: ["castle_courtyard", "castle_great_hall", "castle_secret_passage"],
     can_be_entry: false,
     can_be_ending: false,
+    locked: true,
   },
   {
     id: "castle_library",
@@ -145,6 +174,7 @@ const castleSubScenes: SubScene[] = [
     can_be_entry: false,
     can_be_ending: false,
     required_pickups: ["rusty_key"],
+    locked: true,
   },
   {
     id: "castle_royal_chambers",
@@ -160,6 +190,7 @@ const castleSubScenes: SubScene[] = [
     ],
     can_be_entry: false,
     can_be_ending: false,
+    locked: true,
   },
   {
     id: "castle_tower_stairs",
@@ -171,6 +202,7 @@ const castleSubScenes: SubScene[] = [
     can_be_entry: false,
     can_be_ending: false,
     required_pickups: ["climbing_rope"],
+    locked: true,
   },
   {
     id: "castle_tower_top",
@@ -181,6 +213,7 @@ const castleSubScenes: SubScene[] = [
     connects_to: ["castle_tower_stairs", "castle_royal_chambers"],
     can_be_entry: false,
     can_be_ending: true,
+    locked: true,
   },
   {
     id: "castle_royal_garden",
@@ -191,6 +224,7 @@ const castleSubScenes: SubScene[] = [
     connects_to: ["castle_outer_gate", "castle_courtyard", "castle_dragons_lair"],
     can_be_entry: false,
     can_be_ending: false,
+    locked: true,
   },
   {
     id: "castle_secret_passage",
@@ -207,6 +241,7 @@ const castleSubScenes: SubScene[] = [
     ],
     can_be_entry: false,
     can_be_ending: false,
+    locked: true,
   },
   {
     id: "castle_dragons_lair",
@@ -218,6 +253,7 @@ const castleSubScenes: SubScene[] = [
     can_be_entry: false,
     can_be_ending: true,
     required_pickups: ["dragons_lullaby"],
+    locked: true,
   },
   {
     id: "castle_ancient_crypt",
@@ -229,6 +265,7 @@ const castleSubScenes: SubScene[] = [
     can_be_entry: false,
     can_be_ending: true,
     required_pickups: ["ancient_tome"],
+    locked: true,
   },
 ];
 
@@ -1246,7 +1283,7 @@ export const THEMES: Theme[] = [
     id: "castle",
     label: "Castle and Dragons",
     description: "stone halls, secret passages, and the dragon below",
-    thumbnail_path: "/themes/castle.svg",
+    thumbnail_path: "/themes/castle.webp",
     sub_scenes: castleSubScenes,
   },
   {
@@ -1255,6 +1292,7 @@ export const THEMES: Theme[] = [
     description: "old oaks, hidden ponds, and quiet magic in the moss",
     thumbnail_path: "/themes/forest.svg",
     sub_scenes: forestSubScenes,
+    locked: true,
   },
   {
     id: "candy_land",
@@ -1262,6 +1300,7 @@ export const THEMES: Theme[] = [
     description: "lollipop trees, chocolate rivers, and a sugar castle",
     thumbnail_path: "/themes/candy_land.svg",
     sub_scenes: candySubScenes,
+    locked: true,
   },
   {
     id: "city",
@@ -1269,6 +1308,7 @@ export const THEMES: Theme[] = [
     description: "subways, rooftops, comic shops, and bright sidewalks",
     thumbnail_path: "/themes/city.svg",
     sub_scenes: citySubScenes,
+    locked: true,
   },
   {
     id: "space",
@@ -1276,6 +1316,7 @@ export const THEMES: Theme[] = [
     description: "rockets, moon bases, nebulae, and the wide dark beyond",
     thumbnail_path: "/themes/space.svg",
     sub_scenes: spaceSubScenes,
+    locked: true,
   },
   {
     id: "underwater",
@@ -1283,6 +1324,7 @@ export const THEMES: Theme[] = [
     description: "coral cliffs, kelp forests, sunken ships, and the deep",
     thumbnail_path: "/themes/underwater.svg",
     sub_scenes: underwaterSubScenes,
+    locked: true,
   },
 ];
 

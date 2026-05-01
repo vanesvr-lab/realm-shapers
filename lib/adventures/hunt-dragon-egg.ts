@@ -1430,7 +1430,7 @@ const STORY: StoryTree = {
       "You will be hungry. You will be thirsty. Carry food and water for the road.",
       "A rope helps for the cliffs. A sword cuts vines of cooled lava. A lantern reaches the cave shortcut.",
       "The mother is fierce. But she has a heart. Remember this when you stand before her.",
-      "Choose three things to bring.",
+      "Choose three things to bring. Then begin by heading into the Enchanted Forest. The egg waits beyond.",
     ],
     preload_scene_ids: [
       SCENE.forest_path,

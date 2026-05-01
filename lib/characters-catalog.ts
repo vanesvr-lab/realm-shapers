@@ -18,6 +18,11 @@ export type Character = {
   thumbnail_path: string;
   theme_fit: string[];
   voice: HeroVoiceName;
+  // B-021 demo polish: if true, the hero tile renders locked (grayscale +
+  // 🔒) and is not selectable. Today all 8 catalog entries have real art so
+  // this stays unset; LandingForm also flips a runtime lock if the
+  // thumbnail fails to load (defensive 404 guard).
+  locked?: boolean;
 };
 
 export const CHARACTERS: Character[] = [

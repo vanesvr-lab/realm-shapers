@@ -576,7 +576,7 @@ export function PlayClient({
           worldId={worldId}
           story={story}
           flags={flags}
-          heroCharacterId={isAdventure ? story.default_character_id : editorSnapshot.characterId}
+          heroCharacterId={editorSnapshot.characterId ?? story.default_character_id}
           editorScene1PropIds={isAdventure ? undefined : editorSnapshot.propIds}
           onSetFlag={handleSetFlag}
           onExit={isAdventure ? undefined : handleExitPlay}

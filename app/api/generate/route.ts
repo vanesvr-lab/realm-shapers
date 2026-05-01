@@ -42,7 +42,14 @@ type NewBody = {
 
 type LegacyBody = WorldIngredients & { progressive?: boolean };
 
-type AdventureBody = { adventure_id: string };
+type AdventureBody = {
+  adventure_id: string;
+  // B-021 demo polish: optional override for the hero. Lets the landing form
+  // thread the kid's hero pick through the adventure flow so the picker
+  // selection is honored in the run instead of always falling back to the
+  // adventure's default_character_id.
+  character_id?: string;
+};
 
 type GenerateBody = Partial<NewBody> & Partial<LegacyBody> & Partial<AdventureBody>;
 
@@ -79,27 +86,39 @@ export async function POST(req: NextRequest) {
         );
       }
       const adventure = getAdventure(adventureId)!;
-      const startingScene = adventure.story.scenes.find(
-        (s) => s.id === adventure.story.starting_scene_id
+      // B-021: honor the kid's hero pick from the landing form. Validate it
+      // against the catalog and clone the adventure story with an
+      // overridden default_character_id. PlayClient seeds editorSnapshot
+      // from story.default_character_id, so this single override threads the
+      // pick all the way through the run (StoryPlayer hero render + voice).
+      const pickedCharacterId =
+        typeof body.character_id === "string" && CHARACTERS_BY_ID[body.character_id]
+          ? body.character_id
+          : null;
+      const storyForRun: typeof adventure.story = pickedCharacterId
+        ? { ...adventure.story, default_character_id: pickedCharacterId }
+        : adventure.story;
+      const startingScene = storyForRun.scenes.find(
+        (s) => s.id === storyForRun.starting_scene_id
       );
       const narration = startingScene?.narration ?? "";
       const audioPrompt =
         startingScene?.ambient_audio_prompt ?? "soft wind, gentle outdoor air";
       const ingredientsForRow: WorldIngredients = {
-        setting: adventure.story.title,
-        character: adventure.story.default_character_id,
-        character_asset_id: adventure.story.default_character_id,
-        goal: adventure.story.title,
+        setting: storyForRun.title,
+        character: storyForRun.default_character_id,
+        character_asset_id: storyForRun.default_character_id,
+        goal: storyForRun.title,
         twist: "",
       };
       const { data: row, error } = await supabase
         .from("worlds")
         .insert({
           user_id: user.id,
-          title: adventure.story.title,
+          title: storyForRun.title,
           narration,
           ingredients: ingredientsForRow,
-          map: adventure.story,
+          map: storyForRun,
           audio_prompt: audioPrompt,
           generation_status: "complete",
           theme: null,
@@ -113,8 +132,8 @@ export async function POST(req: NextRequest) {
         );
       }
       return NextResponse.json({
-        title: adventure.story.title,
-        story: adventure.story,
+        title: storyForRun.title,
+        story: storyForRun,
         id: row.id,
         share_slug: row.share_slug,
         unlocked: [],

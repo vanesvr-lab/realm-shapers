@@ -87,6 +87,8 @@ export function LandingForm() {
   // Reset downstream state when an earlier step changes.
   function pickTheme(id: string) {
     if (id === themeId) return;
+    const t = THEMES_BY_ID[id];
+    if (!t || t.locked) return;
     setThemeId(id);
     setEntrySubSceneId(null);
     setTypedSetting("");
@@ -94,10 +96,33 @@ export function LandingForm() {
   }
 
   function pickEntrySubScene(id: string) {
+    const sub = subScenes.find((s) => s.id === id);
+    if (!sub || sub.locked) return;
     setEntrySubSceneId(id);
   }
 
+  // B-021 demo polish: track characters whose thumbnail 404s at runtime so
+  // we can quietly lock the picker tile rather than show a broken image.
+  // Stays empty in normal demo conditions because all 8 PNGs exist; fires
+  // if a future asset is removed or renamed.
+  const [unavailableCharacterIds, setUnavailableCharacterIds] = useState<Set<string>>(
+    new Set()
+  );
+
+  function markCharacterUnavailable(id: string) {
+    setUnavailableCharacterIds((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+    if (characterId === id) setCharacterId(null);
+  }
+
   function pickCharacter(id: string) {
+    const c = CHARACTERS.find((cc) => cc.id === id);
+    if (!c) return;
+    if (c.locked || unavailableCharacterIds.has(id)) return;
     setCharacterId(id);
   }
 
@@ -148,7 +173,13 @@ export function LandingForm() {
       // adventure tree on submit.
       const payload: Record<string, unknown> =
         theme.id === "castle"
-          ? { adventure_id: "hunt-dragon-egg" }
+          ? {
+              adventure_id: "hunt-dragon-egg",
+              // B-021: thread the kid's hero pick into the adventure flow so
+              // the picker selection (e.g. princess) is honored instead of
+              // the adventure's default_character_id (wizard).
+              character_id: character.id,
+            }
           : {
               theme: theme.id,
               entry_sub_scene_id: entrySubScene.id,
@@ -274,7 +305,9 @@ export function LandingForm() {
                 themeId={theme.id}
                 selected={c.id === characterId}
                 disabled={loading}
+                locked={!!c.locked || unavailableCharacterIds.has(c.id)}
                 onPick={() => pickCharacter(c.id)}
+                onUnavailable={() => markCharacterUnavailable(c.id)}
               />
             ))}
           </div>
@@ -423,18 +456,23 @@ function ThemeCard({
   disabled: boolean;
   onPick: () => void;
 }) {
+  const locked = !!theme.locked;
   return (
     <button
       type="button"
       onClick={onPick}
-      disabled={disabled}
+      disabled={disabled || locked}
       aria-pressed={selected}
-      aria-label={theme.label}
+      aria-disabled={locked}
+      aria-label={locked ? `${theme.label} (coming soon)` : theme.label}
+      title={locked ? "Coming soon" : undefined}
       className={`group relative aspect-[5/3] rounded-xl overflow-hidden border-2 text-left transition focus:outline-none ${
         selected
           ? "border-amber-500 ring-2 ring-amber-300 shadow-md"
+          : locked
+          ? "border-amber-200 cursor-not-allowed"
           : "border-amber-200 hover:border-amber-400"
-      } disabled:opacity-60 disabled:cursor-not-allowed`}
+      } disabled:cursor-not-allowed ${locked ? "" : "disabled:opacity-60"}`}
     >
       <Image
         src={theme.thumbnail_path}
@@ -442,14 +480,21 @@ function ThemeCard({
         fill
         unoptimized
         sizes="240px"
-        className="object-cover bg-amber-50"
+        className={`object-cover bg-amber-50 ${locked ? "grayscale opacity-60" : ""}`}
       />
       <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
       <span className="absolute inset-x-0 bottom-0 p-2 text-white">
         <span className="block text-sm font-bold leading-tight">{theme.label}</span>
-        <span className="block text-[11px] opacity-90 leading-tight">{theme.description}</span>
+        <span className="block text-[11px] opacity-90 leading-tight">
+          {locked ? "coming soon" : theme.description}
+        </span>
       </span>
-      {selected && (
+      {locked && (
+        <span className="absolute top-1 right-1 bg-slate-900/80 text-white text-[12px] rounded-full w-6 h-6 flex items-center justify-center shadow">
+          <span aria-hidden="true">🔒</span>
+        </span>
+      )}
+      {selected && !locked && (
         <span className="absolute top-1 right-1 bg-amber-500 text-white text-[10px] font-bold rounded-full px-2 py-0.5 shadow">
           picked
         </span>
@@ -469,18 +514,23 @@ function SubSceneCard({
   disabled: boolean;
   onPick: () => void;
 }) {
+  const locked = !!sub.locked;
   return (
     <button
       type="button"
       onClick={onPick}
-      disabled={disabled}
+      disabled={disabled || locked}
       aria-pressed={selected}
-      aria-label={sub.label}
+      aria-disabled={locked}
+      aria-label={locked ? `${sub.label} (coming soon)` : sub.label}
+      title={locked ? "Coming soon" : undefined}
       className={`group relative aspect-[5/3] rounded-lg overflow-hidden border-2 text-left transition focus:outline-none ${
         selected
           ? "border-amber-500 ring-2 ring-amber-300 shadow-md"
+          : locked
+          ? "border-amber-200 cursor-not-allowed"
           : "border-amber-200 hover:border-amber-400"
-      } disabled:opacity-60 disabled:cursor-not-allowed`}
+      } disabled:cursor-not-allowed ${locked ? "" : "disabled:opacity-60"}`}
     >
       <Image
         src={sub.file_path}
@@ -488,18 +538,26 @@ function SubSceneCard({
         fill
         unoptimized
         sizes="200px"
-        className="object-cover bg-amber-50"
+        className={`object-cover bg-amber-50 ${locked ? "grayscale opacity-60" : ""}`}
       />
       <span className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
       <span className="absolute inset-x-0 bottom-0 p-1.5 text-white">
         <span className="block text-[12px] font-bold leading-tight">{sub.label}</span>
+        {locked && (
+          <span className="block text-[10px] opacity-90 leading-tight">coming soon</span>
+        )}
       </span>
-      {sub.can_be_entry && (
+      {sub.can_be_entry && !locked && (
         <span className="absolute top-1 left-1 bg-emerald-500/90 text-white text-[9px] font-bold rounded-full px-1.5 py-0.5 shadow">
           great start
         </span>
       )}
-      {selected && (
+      {locked && (
+        <span className="absolute top-1 right-1 bg-slate-900/80 text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center shadow">
+          <span aria-hidden="true">🔒</span>
+        </span>
+      )}
+      {selected && !locked && (
         <span className="absolute top-1 right-1 bg-amber-500 text-white text-[9px] font-bold rounded-full px-1.5 py-0.5 shadow">
           picked
         </span>
@@ -513,29 +571,37 @@ function CharacterCard({
   themeId,
   selected,
   disabled,
+  locked,
   onPick,
+  onUnavailable,
 }: {
   character: Character;
   themeId: string;
   selected: boolean;
   disabled: boolean;
+  locked: boolean;
   onPick: () => void;
+  onUnavailable: () => void;
 }) {
   const fits = character.theme_fit.includes(themeId);
   return (
     <button
       type="button"
       onClick={onPick}
-      disabled={disabled}
+      disabled={disabled || locked}
       aria-pressed={selected}
-      aria-label={character.label}
+      aria-disabled={locked}
+      aria-label={locked ? `${character.label} (coming soon)` : character.label}
+      title={locked ? "Coming soon" : undefined}
       className={`group relative aspect-square rounded-xl overflow-hidden border-2 transition focus:outline-none ${
         selected
           ? "border-amber-500 ring-2 ring-amber-300 shadow-md"
+          : locked
+          ? "border-amber-200 cursor-not-allowed"
           : fits
           ? "border-emerald-300 hover:border-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.18)]"
           : "border-amber-200 hover:border-amber-400"
-      } disabled:opacity-60 disabled:cursor-not-allowed`}
+      } disabled:cursor-not-allowed ${locked ? "" : "disabled:opacity-60"}`}
     >
       <Image
         src={character.thumbnail_path}
@@ -543,17 +609,24 @@ function CharacterCard({
         fill
         unoptimized
         sizes="160px"
-        className="object-cover bg-amber-50"
+        onError={onUnavailable}
+        className={`object-cover bg-amber-50 ${locked ? "grayscale opacity-60" : ""}`}
       />
       <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/40 to-transparent text-white text-[11px] sm:text-xs font-semibold py-1 px-1.5 text-center leading-tight">
         {character.label}
+        {locked && <span className="block text-[9px] opacity-90 leading-tight">coming soon</span>}
       </span>
-      {fits && !selected && (
+      {fits && !selected && !locked && (
         <span className="absolute top-1 left-1 bg-emerald-500 text-white text-[9px] font-bold rounded-full px-1.5 py-0.5 shadow">
           great match
         </span>
       )}
-      {selected && (
+      {locked && (
+        <span className="absolute top-1 right-1 bg-slate-900/80 text-white text-[12px] rounded-full w-6 h-6 flex items-center justify-center shadow">
+          <span aria-hidden="true">🔒</span>
+        </span>
+      )}
+      {selected && !locked && (
         <span className="absolute top-1 right-1 bg-amber-500 text-white text-[10px] font-bold rounded-full px-2 py-0.5 shadow">
           picked
         </span>

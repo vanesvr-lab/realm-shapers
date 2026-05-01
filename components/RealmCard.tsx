@@ -14,6 +14,10 @@ import {
   type RarityInputs,
 } from "@/lib/rarity";
 import { getPickup } from "@/lib/pickups-catalog";
+import {
+  ADVENTURER_TIER_BADGE,
+  type AdventurerTier,
+} from "@/lib/adventurer-tiers";
 
 const CARD_W = 340;
 const CARD_H = 520;
@@ -174,6 +178,16 @@ export function RealmCard({
                   {economy.strippedLine}
                 </p>
               )}
+              {economy?.adventurerTier &&
+                economy.adventurerXp !== undefined && (
+                  <div className="mt-2 flex items-center justify-center gap-1.5 text-[10px]">
+                    <span className="uppercase font-bold text-rose-700 tracking-wider">
+                      Adventurer:
+                    </span>
+                    <span>{economy.adventurerXp} XP</span>
+                    <AdventurerTierBadge tier={economy.adventurerTier} />
+                  </div>
+                )}
             </div>
           ) : (
             <>
@@ -220,6 +234,16 @@ export function RealmCard({
                         {economy.builderTier} ({economy.builderXp} XP)
                       </div>
                     )}
+                  {economy.adventurerTier &&
+                    economy.adventurerXp !== undefined && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="uppercase font-bold text-amber-700 tracking-wider">
+                          Adventurer:
+                        </span>
+                        <span>{economy.adventurerXp} XP</span>
+                        <AdventurerTierBadge tier={economy.adventurerTier} />
+                      </div>
+                    )}
                 </div>
               )}
             </>
@@ -247,6 +271,19 @@ export function RealmCard({
         {downloading ? "Saving..." : "⬇ Download as PNG"}
       </button>
     </div>
+  );
+}
+
+function AdventurerTierBadge({ tier }: { tier: string }) {
+  const className =
+    ADVENTURER_TIER_BADGE[tier as AdventurerTier] ??
+    "bg-slate-200 text-slate-700";
+  return (
+    <span
+      className={`px-1.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${className}`}
+    >
+      {tier}
+    </span>
   );
 }
 

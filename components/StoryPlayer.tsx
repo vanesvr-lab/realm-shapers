@@ -27,6 +27,7 @@ import {
   BUILD_TARGETS_BY_PICKUP_ID,
   builderTier,
 } from "@/lib/builds-catalog";
+import { adventurerTier } from "@/lib/adventurer-tiers";
 import { buildFeedbackLine } from "@/lib/build-scorer";
 import { setOraclePin } from "@/lib/oracle-pin-bus";
 import {
@@ -117,6 +118,12 @@ export type EconomySummary = {
   // builds happened, so the card can credit careful builders.
   builderTier?: string;
   builderXp?: number;
+  // B-020: adventurer XP earned this run (+10 per cleared gated choice)
+  // and the matching tier label (Common / Rare / Epic / Legendary).
+  // Rendered on both full and stripped realm cards so a snatcher run
+  // still shows whatever XP they accumulated.
+  adventurerXp?: number;
+  adventurerTier?: string;
 };
 
 type CompletionPayload = {
@@ -685,6 +692,7 @@ export function StoryPlayer({
         }
       }
       const isStripped = STRIPPED_ENDING_IDS.has(finalScene.id);
+      const adventurerXp = counters.adventurer_xp ?? 0;
       economy = {
         coinsEarned,
         coinsRemaining: counters.coins ?? 0,
@@ -694,6 +702,8 @@ export function StoryPlayer({
         strippedLine: isStripped ? STRIPPED_ENDING_LINES[finalScene.id] : undefined,
         builderTier: builderTier(builderXp),
         builderXp,
+        adventurerXp,
+        adventurerTier: adventurerTier(adventurerXp),
       };
     }
     onComplete?.({

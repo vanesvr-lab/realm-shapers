@@ -7,6 +7,7 @@ import {
   assetUrlById,
 } from "@/lib/asset-library";
 import { resolveBackgroundUrl } from "@/lib/background-resolver";
+import { SUB_SCENES_BY_ID } from "@/lib/themes-catalog";
 import type { ChoiceOption, StoryScene, StoryTree } from "@/lib/claude";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { Interactable } from "@/components/Interactable";
@@ -108,6 +109,11 @@ export function StoryPlayer({
   // First tap sets it, second tap on the same id commits, taps elsewhere or
   // outside dismiss it.
   const [previewedInteractableId, setPreviewedInteractableId] = useState<string | null>(null);
+  // B-013: entry video state for sub-scenes that carry an entry_video_path.
+  // "playing" → render <video> on top; "ended" → static image only.
+  // Plays once per (world_id, scene_id), gated by sessionStorage so back-and-forth
+  // navigation in the same session does not replay it.
+  const [entryVideoActive, setEntryVideoActive] = useState(false);
   const audioCache = useRef<Record<string, string>>({});
   const completedRef = useRef(false);
   const endingRedirectedRef = useRef(false);
@@ -133,6 +139,9 @@ export function StoryPlayer({
     );
   }
   const bgUrl = resolveBackgroundUrl(scene.background_id);
+  // B-013: optional entry video keyed off the sub-scene catalog. Drawbridge
+  // is the only one that has it in the pilot.
+  const entryVideoUrl = SUB_SCENES_BY_ID[scene.background_id]?.entry_video_path ?? null;
   const resolved = useMemo(() => resolveScene(scene, flags), [scene, flags]);
   // B-010 scope 6: editor placements only affect the starting scene. Editor
   // adds win because the kid placed them deliberately. Cap to the same 3-prop
@@ -232,6 +241,39 @@ export function StoryPlayer({
   useEffect(() => {
     setPreviewedInteractableId(null);
   }, [scene.id]);
+
+  // B-013 entry video gate. Each scene change re-checks: does this scene have
+  // an entry video AND has it not played yet in this session for this world?
+  useEffect(() => {
+    if (!entryVideoUrl) {
+      setEntryVideoActive(false);
+      return;
+    }
+    const key = `realm-shapers:entry-video-played:${worldId}:${scene.id}`;
+    try {
+      if (sessionStorage.getItem(key) === "1") {
+        setEntryVideoActive(false);
+        return;
+      }
+    } catch {
+      // sessionStorage blocked: skip the video and render the static image.
+      setEntryVideoActive(false);
+      return;
+    }
+    setEntryVideoActive(true);
+  }, [entryVideoUrl, worldId, scene.id]);
+
+  const endEntryVideo = useCallback(() => {
+    setEntryVideoActive(false);
+    try {
+      sessionStorage.setItem(
+        `realm-shapers:entry-video-played:${worldId}:${scene.id}`,
+        "1"
+      );
+    } catch {
+      // ignore
+    }
+  }, [worldId, scene.id]);
 
   // Fire scene_visited (and side_quest_completed for side quest scenes) on
   // every scene change, including the initial mount.
@@ -531,7 +573,37 @@ export function StoryPlayer({
                 />
               )
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+            {/* B-013 entry video overlay. Plays once per (world_id, scene_id);
+                fades out on end or tap. Static image stays mounted underneath
+                so the crossfade is just the video opacity dropping. */}
+            <AnimatePresence>
+              {entryVideoUrl && entryVideoActive && (
+                <motion.video
+                  key={`${scene.id}-entry-video`}
+                  src={entryVideoUrl}
+                  poster={bgUrl ?? undefined}
+                  autoPlay
+                  muted
+                  playsInline
+                  preload="auto"
+                  initial={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  onEnded={endEntryVideo}
+                  onError={endEntryVideo}
+                  className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                />
+              )}
+            </AnimatePresence>
+            {entryVideoUrl && entryVideoActive && (
+              <button
+                type="button"
+                onClick={endEntryVideo}
+                aria-label="Skip intro"
+                className="absolute inset-0 cursor-pointer focus:outline-none"
+              />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent pointer-events-none" />
 
             {charMeta && (
               <HeroAvatar

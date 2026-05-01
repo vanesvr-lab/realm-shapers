@@ -15,6 +15,33 @@
 
 ---
 
+## B-017 — 2026-05-01 — CLI
+**Touched:**
+- components/StoryPlayer.tsx (narration block restyled: max-w-md, ml-auto so it lives in the right column, text-right alignment, font dropped one Tailwind step (text-sm sm:text-base), padding reduced to p-3 sm:p-4, and the narration paragraph clamps to 3 lines via `line-clamp-3`. Title moves down to the right of the side-quest pill instead of the left. Caption strip below the card right-aligned and shorter. Pickup glows extracted into a new in-file `PickupGlow` component that handles desktop hover and mobile tap-and-hold with a 350ms long-press timer, surfacing the catalog hint as a small black caption pill underneath the prop. Long-press suppresses the next click so the kid can read the caption without picking up. Pickup confirmation line in `pickup()` now appends the hint when present, so the Oracle says both what was collected and a small clue. Ask Oracle handler rewritten so the counter only decrements when a real line is spoken; empty `scene.oracle_hint` falls through to a meaningful default ("I have no whisper for you here. Try walking on, and look for the things that gleam.") instead of silently dropping a hint).
+- lib/pickups-catalog.ts (Pickup type gains optional `hint?: string`. All 16 catalog entries authored with one-sentence kid-friendly hints: e.g. coin_pouch "A small leather pouch. Looks heavy.", treasure_chest "An old chest, dust and a faint glow.", rare_gem "Something glittering deep in the ash.", glowstone "A stone with its own soft light.". Tone is a clue, not a spoiler).
+- lib/adventures/hunt-dragon-egg.ts (FOREST_RIDDLE.title renamed from "The Old Oak's Riddle" to "The Enchanted Forest" so kids who pick Castle/Drawbridge see a title that matches the rendered forest art. The riddle motif still lives in the narration body and downstream narration_variants).
+- MORNING_CHECKLIST_017.md (new), CHANGES.md.
+
+**State:** Built and deployed to https://realm-shapers.vercel.app. Two commits on `main` (40854b1 plus this CHANGES + checklist push). `unset ANTHROPIC_API_KEY && npx tsc --noEmit` clean, `npm run lint` clean (0 warnings, 0 errors), validator prints `registry OK`, `unset ANTHROPIC_API_KEY && npm run build` clean. /play first-load JS unchanged at 35.5 kB / 253 kB shared. **Smoke tests pending Vanessa AM verification per `MORNING_CHECKLIST_017.md`** — agent did not click through any browser flow.
+
+How the four scopes connect:
+1. Narration block right-alignment is CSS-only inside StoryPlayer.tsx around line ~1171. The motion.div, AnimatePresence, and side-quest badge layout were all preserved; only Tailwind classes changed plus the title/badge order so the narration card now hugs the right side and stops covering the bottom-left pickup area.
+2. Pickup hints flow through Pickup.hint in lib/pickups-catalog.ts. The new in-file PickupGlow component reads it via getPickup(propId)?.hint and surfaces it both as a hover/long-press caption AND inside the pickup confirmation line. Old worlds (no theme catalog) keep working: the field is optional, missing-hint pickups fall through to the previous "You collect the X." line.
+3. Oracle decrement bug fix is local to the Ask Oracle button onClick. Counter only drops when `lineToSpeak.length > 0`. Default fallback line is non-empty and meaningful, so in practice the counter still decrements on the legitimate "no scene-specific hint" path, just not silently with empty text.
+4. The forest_riddle title rename is a one-line edit. The narration_variants on FOREST_PATH still react to forest_riddle_passed / forest_riddle_failed flags, so the riddle answer still matters to downstream narration.
+
+**Open:**
+- **No browser smoke test by agent.** Build succeeded and types/lint/validator are green, but the kid-facing flows (narration not overlapping pickup, hover caption appearing, tap-and-hold caption appearing, oracle decrement behaving, scene title showing as "The Enchanted Forest") were not exercised in a browser. All five are checklist items in `MORNING_CHECKLIST_017.md`.
+- **PickupGlow long-press timer is 350ms.** Borrowed from common UX guidance; if the kid finds it too short or too long, tweak `setTimeout(..., 350)` in components/StoryPlayer.tsx. No setting is exposed.
+- **Caption uses `truncate max-w-[60vw] whitespace-nowrap`.** All authored hints fit in one line at the chosen size; if Vanessa adds a longer hint later, the truncate will eat it. Switching to `whitespace-normal max-w-xs` would wrap instead.
+- **Narration `line-clamp-3` may cut Claude-generated worlds with long openings.** Hand-authored adventure scenes were spot-checked and fit. If a kid-facing playtest shows a Claude scene getting cut mid-sentence, raise to line-clamp-4 or drop the clamp and rely on max-h + overflow-auto instead.
+
+**Next session:** B-018 (oracle pin + per-gate hints + map overlay) is next. The B-017 oracle decrement fix is a precondition for B-018 B (per-gate hint logic builds on top of the same handler). The narration restyle freed up the bottom-left half of the scene; B-018's Map button can now sit there without colliding.
+
+**Pushed:** yes (40854b1 plus this CHANGES + checklist commit to follow)
+
+---
+
 ## B-016 — 2026-05-01 — CLI
 **Touched:**
 - lib/asset-library.ts (CHARACTERS gains a gingerbread_kid entry: prompt "a friendly gingerbread kid with white icing buttons, a candy belt, and a warm cinnamon smile" plus the shared STYLE_SUFFIX. No other catalog changes).

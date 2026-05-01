@@ -97,6 +97,27 @@ Find the Hunt the Dragon's Egg adventure prologue lines (likely in `lib/adventur
 
 Or paraphrase to match the existing tone. The point is the kid hears WHERE to go after the prologue ends, not just a generic "good luck."
 
+### I. River crossing simplification
+
+The river_crossing scene currently shows two raft options that confuse playtesters:
+- `build_raft` (requires wood_logs + climbing_rope) — left glow, always visible.
+- `cross_with_built_raft` (requires built_raft) — right glow, locked until raft is built.
+
+Vanessa wants only ONE raft option visible (the built-raft one), with a coin-paid alternative replacing the now-removed raw-materials choice. In `lib/adventures/hunt-dragon-egg.ts`:
+
+- **Remove** the `build_raft` choice from `RIVER_CROSSING.choices`. (Wood + rope still flow into raft-building via the Skills & Build panel; alias map already handles the legacy ids.)
+- **Keep** `cross_with_built_raft` as the right-glow option (locked until `built_raft` in inventory). Update its hint copy to absorb the spirit of the removed line, e.g. `"the raft holds; you ride the current across"`.
+- **Add** a new `cross_with_coins` choice as the left-glow option:
+  - `id: "cross_with_coins"`
+  - `label: "Pay a ferryman to cross"` (or similar kid-friendly copy)
+  - `coin_cost: 200`
+  - `next_scene_id: SCENE.volcano_base`
+  - `interactable_kind: "path"`
+  - `hint: "drop coins; the ferry takes you across"`
+  - `oracle_hint: "A ferryman waits at the bend. Two hundred coins and he poles you across."`
+
+Result: left glow is coins, right glow is built raft (locked until built). The "back to riverbank" choice stays as a third path. The scene's narration may want a one-line tweak to mention the ferryman so the coin choice does not feel like it appeared from nowhere.
+
 ### G. Tests
 
 1. `unset ANTHROPIC_API_KEY && npx tsc --noEmit` clean

@@ -99,6 +99,15 @@ This project is built across Claude Code CLI (VS Code terminal) AND Claude Code 
 - If two surfaces are working at once, second one MUST `git pull --rebase` before working.
 - Don't merge surfaces inside a single batch. One batch, one surface.
 
+## CLI Handoff Prompts
+
+Handoffs to a CLI session are pointers, not restatements. The brief is the contract; the kickoff prompt just frames autonomy and tree state.
+
+Template:
+> Read `CLAUDE.md` and `docs/cli-briefs/B-XXX-name.md`, then execute the entire brief end to end including [deploy / writing MORNING_CHECKLIST_XXX.md]. Run `git pull --rebase` at the start (origin is at `<SHA>`, plus any tree-state notes). Commit at the phase boundaries listed in the brief. Push at the end. If any test step fails (tsc, lint, build, validator), do NOT deploy, write the morning checklist explaining the failure and push the partial work. Vanessa is [asleep / awake]; [no questions, use defaults / ask only if genuinely ambiguous].
+
+Do NOT include in the handoff: schema diffs, file paths, line numbers, scene names, literal test commands, the deploy command, or restated acceptance criteria. All of that lives in the brief.
+
 ## Batch Numbering
 
 Sequential batch IDs (B-001, B-002, ...) tie planning briefs, CHANGES entries, and chat references together. Commit messages stay clean (no B-XXX prefix).

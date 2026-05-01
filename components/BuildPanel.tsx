@@ -20,6 +20,7 @@ import {
   ownsMaterial,
   resolveOwnedMaterialId,
 } from "@/lib/builds-catalog";
+import { buildFeedbackLine } from "@/lib/build-scorer";
 
 // Inventory ids (across all canonical materials and their legacy aliases)
 // that should surface in the "Materials on hand" list even when their
@@ -38,6 +39,17 @@ export type BuildResult = {
   feedback: string;
 };
 
+// Snapshot of the build the kid just submitted, used by the in-panel
+// result view. Kept local because the panel is the one that knows the
+// score breakdown and pre-build XP at submit time.
+type LocalBuildResult = {
+  pickupId: string;
+  level: number;
+  score: import("@/lib/build-scorer").ScoreBreakdown;
+  xpBefore: number;
+  xpAfter: number;
+};
+
 export function BuildPanel({
   inventory,
   builderXp,
@@ -54,6 +66,7 @@ export function BuildPanel({
   const [prompt, setPrompt] = useState("");
   const [showExample, setShowExample] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
+  const [localResult, setLocalResult] = useState<LocalBuildResult | null>(null);
 
   // Materials currently on hand. Filtered to the actual material catalog
   // entries so unrelated inventory items do not clutter the display.
@@ -113,7 +126,28 @@ export function BuildPanel({
       consumes: resolvedConsumes,
       feedback: "", // parent fills via build-scorer.buildFeedbackLine
     });
+    setLocalResult({
+      pickupId: `built_${target.id}`,
+      level: score.level,
+      score,
+      xpBefore: builderXp,
+      xpAfter: builderXp + score.level,
+    });
+  }
+
+  function dismissResult() {
+    setLocalResult(null);
     setPrompt("");
+    onClose();
+  }
+
+  if (localResult) {
+    return (
+      <BuildResultView
+        result={localResult}
+        onContinue={dismissResult}
+      />
+    );
   }
 
   return (
@@ -330,6 +364,164 @@ function tickMark(on: boolean): string {
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// Result modal shown after a successful build. Closes on Continue.
+function BuildResultView({
+  result,
+  onContinue,
+}: {
+  result: LocalBuildResult;
+  onContinue: () => void;
+}) {
+  const builtMeta = getPickup(result.pickupId);
+  const buildId = result.pickupId.replace(/^built_/, "");
+  const target = BUILD_TARGETS_BY_ID[buildId];
+  const label = target?.label ?? "build";
+  const tierBefore = builderTier(result.xpBefore);
+  const tierAfter = builderTier(result.xpAfter);
+  const tierChanged = tierBefore !== tierAfter;
+  const feedback = buildFeedbackLine(label, result.level);
+
+  // Pick the first unmet rubric criterion to coach the kid toward a higher
+  // score next time. If everything is checked, celebrate the masterwork.
+  const TIPS = {
+    hasMaterial: "Name the materials you are using (wood, rope, cloth, ...).",
+    hasRole: "Give the builder a role (\"you are a skilled raft-builder\").",
+    hasConstraint: "Add a constraint (\"must hold three people\", \"won't sink\").",
+    hasUseCase: "Name the use case (\"to cross the river\", \"so it floats\").",
+    hasSpecifics: "Add a specific detail (size, color, number, texture).",
+  } as const;
+  const ORDER: Array<keyof typeof TIPS> = [
+    "hasMaterial",
+    "hasRole",
+    "hasConstraint",
+    "hasUseCase",
+    "hasSpecifics",
+  ];
+  const firstMissing = ORDER.find((k) => !result.score[k]) ?? null;
+  const tipLine = firstMissing
+    ? `Tip for next time: ${TIPS[firstMissing]}`
+    : "Every detail checked. This is a masterwork.";
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        key="build-result"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4 sm:p-6"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Build result"
+      >
+        <motion.div
+          initial={{ scale: 0.92, y: 20, opacity: 0 }}
+          animate={{ scale: 1, y: 0, opacity: 1 }}
+          transition={{ duration: 0.25 }}
+          className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-5 sm:p-6 flex flex-col gap-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-3">
+            {builtMeta && (
+              <div className="relative w-16 h-16 shrink-0">
+                <Image
+                  src={builtMeta.icon_path}
+                  alt={builtMeta.label}
+                  fill
+                  unoptimized
+                  sizes="64px"
+                  className="object-contain drop-shadow"
+                />
+              </div>
+            )}
+            <div className="flex flex-col">
+              <p className="text-[10px] uppercase tracking-widest text-amber-700 font-bold">
+                Built
+              </p>
+              <h3 className="text-xl sm:text-2xl font-bold text-amber-950 leading-tight">
+                Level {result.level} {capitalize(label)}
+              </h3>
+              <p className="text-sm text-slate-700 mt-0.5">{feedback}</p>
+            </div>
+          </div>
+
+          <section className="bg-amber-50 rounded-lg ring-1 ring-amber-200 p-3 flex items-center gap-3">
+            <span className="text-2xl" aria-hidden>
+              ✨
+            </span>
+            <div className="flex flex-col text-sm">
+              <span className="font-bold text-amber-950">
+                +{result.level} builder XP
+              </span>
+              <span className="text-slate-700">
+                Total {result.xpAfter} XP ·{" "}
+                <span className="font-semibold text-amber-900">
+                  {tierAfter}
+                </span>
+                {tierChanged && (
+                  <span className="ml-1 text-emerald-700 font-bold">
+                    promoted!
+                  </span>
+                )}
+              </span>
+            </div>
+          </section>
+
+          <section className="bg-slate-50 rounded-lg ring-1 ring-slate-200 p-3">
+            <p className="text-[10px] uppercase tracking-widest text-slate-700 font-bold mb-1">
+              Added to your collection
+            </p>
+            <div className="flex items-center gap-2">
+              {builtMeta && (
+                <div className="relative w-8 h-8">
+                  <Image
+                    src={builtMeta.icon_path}
+                    alt={builtMeta.label}
+                    fill
+                    unoptimized
+                    sizes="32px"
+                    className="object-contain"
+                  />
+                </div>
+              )}
+              <span className="text-sm font-semibold text-slate-900">
+                {builtMeta?.label ?? capitalize(label)}
+              </span>
+            </div>
+          </section>
+
+          <section className="bg-slate-50 rounded-lg ring-1 ring-slate-200 p-3 text-xs">
+            <p className="uppercase tracking-widest text-slate-700 font-bold mb-1">
+              Score breakdown
+            </p>
+            <ul className="space-y-0.5">
+              <li>{tickMark(result.score.hasMaterial)} Names a material</li>
+              <li>{tickMark(result.score.hasRole)} Gives the builder a role</li>
+              <li>{tickMark(result.score.hasConstraint)} Adds a constraint</li>
+              <li>{tickMark(result.score.hasUseCase)} Names a use case</li>
+              <li>
+                {tickMark(result.score.hasSpecifics)} Adds specifics (size,
+                color, number)
+              </li>
+            </ul>
+            <p className="mt-2 text-amber-900 font-semibold">{tipLine}</p>
+          </section>
+
+          <button
+            type="button"
+            onClick={onContinue}
+            className="self-stretch px-4 py-3 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-base shadow-lg"
+            autoFocus
+          >
+            Continue
+          </button>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
 }
 
 // Re-export the lookup so StoryPlayer can find a target's display label

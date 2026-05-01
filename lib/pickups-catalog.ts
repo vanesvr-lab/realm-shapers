@@ -31,9 +31,16 @@ export type Pickup = {
   purchase_price?: number;
   // B-019 build category. "material" = raw shop ingredient. "built" =
   // produced by the kid via the Skills & Build panel; consumed once at a
-  // build-gate. Absent on every pre-B-019 pickup so existing flows are
-  // unaffected.
-  kind?: "material" | "built";
+  // build-gate. "consumable" = shop purchase that ticks a counter rather
+  // than landing in inventory (food, water). Absent on every pre-B-019
+  // pickup so existing flows are unaffected.
+  kind?: "material" | "built" | "consumable";
+  // B-020: when set, buying this pickup from the shop ticks the named
+  // counters by the given amounts (clamped to max) instead of (or in
+  // addition to) adding the pickup to inventory. food_ration and
+  // water_bottle use this to refill the counter directly so the kid
+  // does not have to carry a stack of items just to drink.
+  grants_counter?: Record<string, number>;
 };
 
 export const PICKUPS: Pickup[] = [
@@ -89,16 +96,22 @@ export const PICKUPS: Pickup[] = [
   {
     id: "water_bottle",
     label: "Water Bottle",
-    description: "small leather bottle with a wooden cork stopper",
+    description: "fresh water from the spring",
     icon_path: "/pickups/water_bottle.webp",
     hint: "A leather bottle, cool to the touch.",
+    purchase_price: 30,
+    kind: "consumable",
+    grants_counter: { water: 1 },
   },
   {
     id: "food_ration",
     label: "Trail Rations",
-    description: "bundle of dried bread and berries wrapped in paper",
+    description: "a hot meal for the road",
     icon_path: "/pickups/food_ration.webp",
     hint: "Dried bread and berries, wrapped tight.",
+    purchase_price: 30,
+    kind: "consumable",
+    grants_counter: { food: 1 },
   },
   {
     id: "lantern",

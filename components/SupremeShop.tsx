@@ -115,7 +115,7 @@ export function SupremeShop({
           </ul>
         </div>
         <p className="text-xs text-amber-100/80 mt-3 text-center">
-          Materials feed the Skills & Build panel. Stock up, then craft.
+          Materials feed the Skills & Build panel. Food and water refill the road.
         </p>
       </motion.div>
     </AnimatePresence>

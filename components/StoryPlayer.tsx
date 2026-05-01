@@ -979,6 +979,9 @@ export function StoryPlayer({
   // material twice in inventory is allowed because the BuildPanel reads
   // counts off the array), plays the coin chime, and confirms via the
   // Oracle bus.
+  // B-020: pickups with `grants_counter` (food_ration, water_bottle) tick
+  // the named counters instead of landing in inventory. The kid does not
+  // have to lug a stack of food items around just to drink.
   const buyMaterial = useCallback(
     (pickupId: string, price: number) => {
       if (!counters || !counterDefs || !onCountersChange) return;
@@ -986,12 +989,24 @@ export function StoryPlayer({
       if (!coinsDef) return;
       const current = counters.coins ?? 0;
       if (current < price) return;
-      onCountersChange({
+      const meta = getPickup(pickupId);
+      const maxById = new Map(counterDefs.map((d) => [d.id, d.max]));
+      let next: CounterState = {
         ...counters,
         coins: Math.max(0, current - price),
-      });
-      const meta = getPickup(pickupId);
-      setInventory((inv) => [...inv, pickupId]);
+      };
+      if (meta?.grants_counter) {
+        const updated = { ...next };
+        for (const [id, amount] of Object.entries(meta.grants_counter)) {
+          const max = maxById.get(id) ?? Infinity;
+          updated[id] = Math.min(max, (updated[id] ?? 0) + amount);
+        }
+        next = updated;
+      }
+      onCountersChange(next);
+      if (!meta?.grants_counter) {
+        setInventory((inv) => [...inv, pickupId]);
+      }
       playChing();
       if (meta) {
         speakOracle({

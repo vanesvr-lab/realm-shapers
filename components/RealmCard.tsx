@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { ASSETS_BY_ID, assetUrlById } from "@/lib/asset-library";
 import { resolveBackgroundUrl } from "@/lib/background-resolver";
 import type { StoryScene, StoryTree, WorldIngredients } from "@/lib/claude";
+import type { EconomySummary } from "@/components/StoryPlayer";
 import {
   calculateRarity,
   rarityReason,
@@ -12,6 +13,7 @@ import {
   type Rarity,
   type RarityInputs,
 } from "@/lib/rarity";
+import { getPickup } from "@/lib/pickups-catalog";
 
 const CARD_W = 340;
 const CARD_H = 520;
@@ -24,6 +26,7 @@ export function RealmCard({
   rarityInputs,
   username,
   flagTitleSuffix,
+  economy,
 }: {
   title: string;
   story: StoryTree;
@@ -32,6 +35,7 @@ export function RealmCard({
   rarityInputs: RarityInputs;
   username?: string | null;
   flagTitleSuffix?: string | null;
+  economy?: EconomySummary;
 }) {
   const displayTitle = flagTitleSuffix ? `${title}, ${flagTitleSuffix}` : title;
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -155,6 +159,35 @@ export function RealmCard({
             <Ingredient label="Goal" value={ingredients.goal} />
             <Ingredient label="Twist" value={ingredients.twist} />
           </div>
+
+          {economy && (
+            <div className="px-4 mt-2 text-[10px] text-amber-950 leading-tight space-y-0.5">
+              {economy.endingTier && (
+                <div>
+                  <span className="uppercase font-bold text-amber-700 tracking-wider">
+                    Ending:
+                  </span>{" "}
+                  <span className="font-semibold">{economy.endingTier}</span>
+                </div>
+              )}
+              <div>
+                <span className="uppercase font-bold text-amber-700 tracking-wider">
+                  Coins:
+                </span>{" "}
+                {economy.coinsEarned} earned, {economy.coinsRemaining} remaining
+              </div>
+              {economy.trophies.length > 0 && (
+                <div>
+                  <span className="uppercase font-bold text-amber-700 tracking-wider">
+                    Trophies:
+                  </span>{" "}
+                  {economy.trophies
+                    .map((id) => getPickup(id)?.label ?? id)
+                    .join(", ")}
+                </div>
+              )}
+            </div>
+          )}
 
           <footer className="absolute left-0 right-0 bottom-2 flex items-center justify-between px-4">
             <span className="text-[9px] uppercase tracking-widest text-amber-800/80">

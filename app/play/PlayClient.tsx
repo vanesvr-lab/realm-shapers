@@ -9,7 +9,7 @@ import type { StoryScene, StoryTree, WorldIngredients } from "@/lib/claude";
 import type { AchievementDef } from "@/lib/achievements-types";
 import type { RarityInputs } from "@/lib/rarity";
 import { SceneEditor, type EditorSnapshot } from "@/components/SceneEditor";
-import { StoryPlayer, type GameplayEvent } from "@/components/StoryPlayer";
+import { StoryPlayer, type EconomySummary, type GameplayEvent } from "@/components/StoryPlayer";
 import { SaveYourWorldsModal } from "@/components/SaveYourWorldsModal";
 import { AchievementToast } from "@/components/AchievementToast";
 import { OraclePrologue } from "@/components/OraclePrologue";
@@ -85,6 +85,7 @@ export function PlayClient({
     endingScene: StoryScene;
     rarityInputs: RarityInputs;
     flagSuffix: string | null;
+    economy?: EconomySummary;
   } | null>(null);
   const [toastQueue, setToastQueue] = useState<AchievementDef[]>(initialUnlocked);
   const flagsKey = `realm-shapers:flags:${worldId}`;
@@ -308,6 +309,7 @@ export function PlayClient({
     pickupsCollected: string[];
     totalPickups: number;
     secretDiscovered: boolean;
+    economy?: EconomySummary;
   }) {
     const rarityInputs: RarityInputs = {
       propsPlaced: editorSnapshot.propsPlaced,
@@ -319,6 +321,7 @@ export function PlayClient({
       endingScene: payload.endingScene,
       rarityInputs,
       flagSuffix: flagTitleSuffix(flags),
+      economy: payload.economy,
     });
   }
 
@@ -611,6 +614,7 @@ export function PlayClient({
                 rarityInputs={completion.rarityInputs}
                 username={username}
                 flagTitleSuffix={completion.flagSuffix}
+                economy={completion.economy}
               />
               <div className="flex flex-wrap gap-2 justify-center">
                 {!isAdventure && (

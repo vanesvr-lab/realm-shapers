@@ -53,12 +53,35 @@ export type GameplayEvent =
   | { kind: "choice_made"; world_id: string; scene_id: string; flag_id: string }
   | { kind: "world_completed_with_ending"; world_id: string; ending_scene_id: string };
 
+// B-014 economy: ending tier labels for the realm card. Maps each adventure
+// ending scene id to a kid-friendly tier name. Falls back to undefined for
+// non-adventure endings (the realm card simply omits the label then).
+const ENDING_TIER_LABELS: Record<string, string> = {
+  ending_friend: "The Friend",
+  ending_charmed: "The Charmer",
+  ending_appeased: "The Appeased",
+  ending_blessed: "The Blessed",
+  ending_success: "The Snatcher",
+  ending_starvation: "The Lost",
+  ending_dehydration: "The Lost",
+  ending_lost: "The Lost",
+  ending_secret: "The Hatcher",
+};
+
+export type EconomySummary = {
+  coinsEarned: number;
+  coinsRemaining: number;
+  trophies: string[];
+  endingTier: string | null;
+};
+
 type CompletionPayload = {
   endingScene: StoryScene;
   scenesVisited: string[];
   pickupsCollected: string[];
   totalPickups: number;
   secretDiscovered: boolean;
+  economy?: EconomySummary;
 };
 
 const TUTORIAL_KEY = "realm-shapers:saw-tutorial";
@@ -509,12 +532,39 @@ export function StoryPlayer({
         });
       }
     }
+    // B-014 economy: compute the realm-card summary from final inventory
+    // and counter state. Only present for adventures (counter_defs declared
+    // and a coins counter exists). Trophies are inventory items that have a
+    // coin_value or are the glowstone keepsake.
+    const coinsDef = counterDefs?.find((d) => d.id === "coins");
+    let economy: EconomySummary | undefined;
+    if (coinsDef && counters) {
+      let coinsEarned = 0;
+      const trophies: string[] = [];
+      for (const id of pickupsArr) {
+        const meta = getPickup(id);
+        if (!meta) continue;
+        if (meta.coin_value && meta.coin_value > 0) {
+          coinsEarned += meta.coin_value;
+          trophies.push(id);
+        } else if (id === "glowstone") {
+          trophies.push(id);
+        }
+      }
+      economy = {
+        coinsEarned,
+        coinsRemaining: counters.coins ?? 0,
+        trophies,
+        endingTier: ENDING_TIER_LABELS[finalScene.id] ?? null,
+      };
+    }
     onComplete?.({
       endingScene: finalScene,
       scenesVisited: visitedArr,
       pickupsCollected: pickupsArr,
       totalPickups,
       secretDiscovered: finalSecret,
+      economy,
     });
   }, [
     isEnding,

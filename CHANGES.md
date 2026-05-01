@@ -15,6 +15,34 @@
 
 ---
 
+## B-021 — 2026-05-01 — CLI
+**Touched:**
+- lib/themes-catalog.ts (Theme gains optional `locked?: boolean`; SubScene gains optional `locked?: boolean`. Forest, candy_land, city, space, underwater all flagged `locked: true`. Castle theme thumbnail flipped from `/themes/castle.svg` to `/themes/castle.webp` so the painted Flux thumbnail wins. New `castle_dragon_egg_quest` SubScene at the top of `castleSubScenes` (label "Collect the Dragon's Egg", file_path `/backgrounds/castle/dragon_egg_quest.webp`, can_be_entry true, connects_to drawbridge). Every other castle SubScene (drawbridge, outer_gate, courtyard, great_hall, throne_room, dungeon, kitchen, library, royal_chambers, tower_stairs, tower_top, royal_garden, secret_passage, dragons_lair, ancient_crypt) flagged `locked: true`).
+- lib/characters-catalog.ts (Character gains optional `locked?: boolean`. All 8 entries stay unlocked because real PNG art is shipped; LandingForm also flips a runtime lock if the thumbnail 404s).
+- components/LandingForm.tsx (ThemeCard / SubSceneCard / CharacterCard each render a locked variant: grayscale image, 🔒 pill, "coming soon" caption, button is `disabled` and `aria-disabled`. pickTheme / pickEntrySubScene refuse locked picks. New `unavailableCharacterIds` runtime set populated by an `onError` on the character `Image` so missing thumbnails quietly disable the tile. `great match` and `great start` badges hide when locked. Castle adventure payload now includes `character_id: character.id` so the kid's hero pick threads through `/api/generate`).
+- app/api/generate/route.ts (AdventureBody gains optional `character_id`. Adventure branch validates body.character_id against CHARACTERS_BY_ID and clones `adventure.story` with `default_character_id` overridden when valid. The cloned `storyForRun` is what gets persisted to `worlds.map`, returned in the response, and used for the ingredients row, so PlayClient sees the kid's pick downstream).
+- app/play/PlayClient.tsx (heroCharacterId prop simplified from `isAdventure ? story.default_character_id : editorSnapshot.characterId` to `editorSnapshot.characterId ?? story.default_character_id`. editorSnapshot is seeded from `story.default_character_id` at mount, which is now the overridden id from the route, so the picker selection (e.g. princess) reaches StoryPlayer in adventure mode instead of falling back to wizard).
+- lib/adventures/hunt-dragon-egg.ts (final Oracle prologue line rewritten from "Choose three things to bring." to "Choose three things to bring. Then begin by heading into the Enchanted Forest. The egg waits beyond." — the kid hears WHERE to go after the prologue ends).
+- scripts/generate-b021-art.ts (new — minimal one-off Flux 1.1 Pro generator for the two new webp assets. Skips files that exist; honors --force).
+- public/themes/castle.webp (new — painted Studio Ghibli watercolor castle at golden hour with circling dragons, 16:9, ~120 KB).
+- public/backgrounds/castle/dragon_egg_quest.webp (new — glowing dragon's egg in a torch-lit cavern with the mother dragon coiled around it, 16:9, ~113 KB).
+- MORNING_CHECKLIST_021.md (new), CHANGES.md.
+
+**State:** Built and deployed to https://realm-shapers.vercel.app. One commit on `main` covering all six scopes, plus the deploy + CHANGES + checklist push. `unset ANTHROPIC_API_KEY && npx tsc --noEmit` clean, `npm run lint` clean (0 warnings, 0 errors), `npx tsx -e 'import("./lib/adventures/index")...'` prints `registry OK`, `unset ANTHROPIC_API_KEY && npm run build` clean. `/play` first-load JS at 43.5 kB / 261 kB shared (was 43.5 kB / 261 kB after B-020 — no bundle delta because the locked-tile UI is in-place CSS branches and one new ref/state, no new component). **Smoke tests pending Vanessa AM verification per `MORNING_CHECKLIST_021.md`** — agent did not click through any browser flow.
+
+**Open:**
+- **No browser smoke test by agent.** Locked theme grid, locked starting-place grid, princess-as-hero in adventure scene, prologue final-line nudge — all listed in MORNING_CHECKLIST_021.md.
+- **Castle thumbnail SVG (`/themes/castle.svg`) is no longer referenced** but stays in the public folder. Cheap to delete later.
+- **`castle_dragon_egg_quest` only connects_to drawbridge.** Catalog validator requires the same-theme target; drawbridge is the cheapest valid neighbor and the kid never traverses this edge in the adventure flow (castle theme always routes to the hand-authored Hunt the Dragon's Egg adventure regardless of the picked sub-scene). Once we wire B-022 multi-quest castle, revisit the connectivity.
+- **Hero auto-lock fires on `<Image onError>`.** Because next/image swallows native errors in some configurations, we may want a `useEffect` that probes thumbnails with `fetch(HEAD)` instead. Today all 8 are real so the path is dormant — defensive only.
+- **Adventure flow still passes `entry_sub_scene_id` is irrelevant** for castle (the route uses `adventure_id` and ignores the picked sub-scene). Step 2 is therefore a one-tile picker for the demo. Cheap to skip step 2 entirely once the demo is over.
+
+**Next session:** B-022 candidates: (a) unlock Forest theme with its own short adventure once Anaya's forest design notes land; (b) replace the placeholder SVG sub-scenes inside Castle with painted webp variants and unlock them in the right narrative order; (c) skip step 2 of the landing form when the picked theme has only one selectable starting place (today the kid still taps the Dragon Egg tile to advance); (d) add a real "coming soon" sheet that previews the locked theme's vibe instead of a static pill.
+
+**Pushed:** yes (one phase commit plus this CHANGES + checklist commit to follow)
+
+---
+
 ## B-020 — 2026-05-01 — CLI
 **Touched:**
 - lib/pickups-catalog.ts (Pickup type gains optional `grants_counter?: Record<string, number>` and `kind: "consumable"`. food_ration and water_bottle authored with `purchase_price: 30`, `kind: "consumable"`, `grants_counter: { food: 1 }` / `{ water: 1 }`. SHOP_MATERIALS picks them up automatically because the filter is on purchase_price; no change to the export needed).

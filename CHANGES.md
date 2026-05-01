@@ -15,6 +15,43 @@
 
 ---
 
+## B-020 — 2026-05-01 — CLI
+**Touched:**
+- lib/pickups-catalog.ts (Pickup type gains optional `grants_counter?: Record<string, number>` and `kind: "consumable"`. food_ration and water_bottle authored with `purchase_price: 30`, `kind: "consumable"`, `grants_counter: { food: 1 }` / `{ water: 1 }`. SHOP_MATERIALS picks them up automatically because the filter is on purchase_price; no change to the export needed).
+- components/SupremeShop.tsx (footer copy updated to "Materials feed the Skills & Build panel. Food and water refill the road.").
+- components/StoryPlayer.tsx (`buyMaterial` rewritten: when the bought pickup has `grants_counter`, tick the named counters via the existing onCountersChange path and skip the inventory add. Unchanged for raw materials. New `firedWarnings: Set<string>` state plus a useEffect on counters that fires a one-time Oracle hint for each of `food` and `water` when the counter dips to ≤ 2. Choice-render block now filters out choices whose `hide_when_inventory_has` overlaps inventory before mapping. tryActivate gains a `wasGated` flag (`requires.length > 0 || requires_any.length > 0 || coin_cost > 0`); when true, ticks `adventurer_xp` by 10 through the same counter-mutation block so coins/food/water/XP all flush in one onCountersChange call. EconomySummary gains `adventurerXp` and `adventurerTier` fields. STRIPPED_ENDING_LINES copy refreshed for starvation / dehydration to match the new sharper failure narration).
+- lib/claude.ts (StoryChoice gains optional `hide_when_inventory_has?: string[]`. Documented intent: render-only filter; tryActivate would still accept the choice if surfaced via other UI).
+- lib/adventures/index.ts (registry validator extended to verify every `hide_when_inventory_has` id resolves in the pickup catalog).
+- lib/adventures/hunt-dragon-egg.ts (ENDING_STARVATION rewritten: "Out of Food" title, narration spells out food ran out and Play Again. ENDING_DEHYDRATION same shape for water. New `adventurer_xp` counter_def on the story (max 9999, start_at 0, critical_at -1, icon tarnished_medallion.webp). `hide_when_inventory_has: ["built_ladder"]` on FOREST_PATH.go_cliff. `hide_when_inventory_has: ["built_raft"]` on RIVER_CROSSING.build_raft. `hide_when_inventory_has: ["built_music_box"]` on DRAGON_CHAMBER.sing_lullaby).
+- lib/adventurer-tiers.ts (new — `adventurerTier(xp)` returns Common (0-29) / Rare (30-59) / Epic (60-99) / Legendary (100+). `ADVENTURER_TIER_BADGE` exposes Tailwind class fragments per tier so RealmCard can render a colour-coded inline badge).
+- components/RealmCard.tsx (imports the tiers helper. New `<AdventurerTierBadge tier={...}/>` subcomponent renders the grey/blue/purple/gold pill. Both the full and stripped branches render an "Adventurer: N XP — Tier" line below the existing block (Coins / Trophies / Builder for full; below regret line for stripped)).
+- MORNING_CHECKLIST_020.md (new), CHANGES.md.
+
+**State:** Built and deployed to https://realm-shapers.vercel.app. Six phase commits on `main` (9af5ffc shop food, 9766afc failure narration, d028b6b low-supply warning, b4ecec3 hide redundant builds, dd18ca0 XP counter, 0231b6b adventurer tier on card) plus this CHANGES + checklist push. `unset ANTHROPIC_API_KEY && npx tsc --noEmit` clean, `npm run lint` clean (0 warnings, 0 errors), validator prints `registry OK`, `unset ANTHROPIC_API_KEY && npm run build` clean. /play first-load JS unchanged at 42 kB / 260 kB shared (B-020 is in-place edits + a tiny new tiers helper, no new component bundles). Production deploy succeeded. **Smoke tests pending Vanessa AM verification per `MORNING_CHECKLIST_020.md`** — agent did not click through any browser flow.
+
+How the six scopes connect end-to-end:
+1. Shop food/water uses the same SHOP_MATERIALS list rendered by SupremeShop. The list's filter (`typeof p.purchase_price === "number" && p.purchase_price > 0`) needed no change; food_ration and water_bottle just gained the field. The actual differentiation (counter tick vs inventory add) lives in StoryPlayer's `buyMaterial`, branching on `meta.grants_counter`. This means future shop items can ship via the catalog alone — no StoryPlayer change required.
+2. Failure narrations are pure data edits in `hunt-dragon-egg.ts`. Stripped-card regret lines live in StoryPlayer's STRIPPED_ENDING_LINES and were sharpened in step.
+3. Low-supply warning is a useEffect on `[counters, counterDefs, firedWarnings]` that walks food + water; first dip to ≤ 2 fires the hint and adds the counter id to firedWarnings. The set is local React state so Play Again's remount resets it.
+4. Hide-redundant is a render-time filter on `scene.choices.filter(...)` that drops choices whose hide list overlaps inventory. The schema field on StoryChoice is the only addition; tryActivate's gate logic is untouched. Validator covers it for adventures.
+5. Adventurer XP is a regular counter (max 9999, start 0). The +10 fires inside tryActivate's existing counter-mutation block when `wasGated` is true, so it flushes alongside coin spend / food consume / water consume in one onCountersChange call. The CounterBar's existing text-display branch (`max > 50`) renders it as "XP: N" with no component change.
+6. Tier label is a pure function on the XP value. EconomySummary computes both at completion time (`counters.adventurer_xp ?? 0` → adventurerTier). RealmCard reads the badge class from ADVENTURER_TIER_BADGE for color coding. The full and stripped branches each render the same `<AdventurerTierBadge>` subcomponent, just in different containers.
+
+**Open:**
+- **No browser smoke test by agent.** All six features verified via tsc/lint/registry/build but not by clicking through. MORNING_CHECKLIST_020.md sections A-F walk through each.
+- **Adventurer XP icon reuses tarnished_medallion.webp.** A dedicated achievement icon would be cleaner; out of scope.
+- **No "buy disabled when counter is full" UX.** A kid at 6/6 food can still spend 30 coins on a Trail Rations and lose the coins to clamping. Cheap to add later if playtest shows it.
+- **Low-supply warning copy mentions hunting an animal**, but the adventure has no hunt mechanic. The line is still useful ("hunt OR shop"). Real hunt mechanic is explicitly out of scope per brief.
+- **Hide rule is one-way and render-only.** If a future scene loops the kid back to a hide-affected scene after the built item was consumed, the raw choice would reappear (kid no longer has built_ladder etc., so the hide condition is false). Today the affected scenes never re-show after consume so this is not visible.
+- **Tier thresholds (30/60/100) are guesses.** Vanessa to playtest and tune. Most full runs accumulate ~5-10 gated clears; tweaking the thresholds in `lib/adventurer-tiers.ts` is one-line.
+- **Adventurer XP does not persist across runs** (resets on Play Again via existing remount key). Per brief.
+
+**Next session:** B-021 candidates: (a) custom XP icon in `/public/pickups/` to replace the medallion proxy; (b) disable-on-full for counter-grant shop items to prevent wasted coin spends; (c) tier-aware art (Legendary card variant with extra glow / particles); (d) Claude-judged build prompts in BuildPanel (would need an API endpoint and online check); (e) profile gallery cards display the adventurer tier badge alongside the existing rarity ribbon; (f) achievement: hit Legendary tier in a single run.
+
+**Pushed:** yes (6 phase commits plus this CHANGES + checklist commit to follow)
+
+---
+
 ## B-019 — 2026-05-01 — CLI
 **Touched:**
 - components/LeftRail.tsx (new — fixed bottom-left vertical stack of 4 buttons: Map, Hints, Shop, Build. Each at least 44px tall. Hint count and builder tier render as small badges on their respective buttons. Replaces the standalone Map button from B-018; the Map button is now just the first rail entry).

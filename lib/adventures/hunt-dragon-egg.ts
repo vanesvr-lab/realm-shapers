@@ -35,12 +35,23 @@ const SCENE = {
   song_quest: "song_quest",
   dragon_chamber: "dragon_chamber",
   dragon_riddle: "dragon_riddle",
+  // B-014 economy expansion: 8 new scenes for treasures, markets, mounts,
+  // and a converging cubs antechamber before the final cavern.
+  wolf_encounter: "wolf_encounter",
+  waterfall_climb: "waterfall_climb",
+  eagle_nest: "eagle_nest",
+  bone_field: "bone_field",
+  crystal_chamber: "crystal_chamber",
+  dragon_cubs: "dragon_cubs",
+  shrine: "shrine",
+  thief_encounter: "thief_encounter",
   ending_starvation: "ending_starvation",
   ending_dehydration: "ending_dehydration",
   ending_lost: "ending_lost",
   ending_friend: "ending_friend",
   ending_charmed: "ending_charmed",
   ending_appeased: "ending_appeased",
+  ending_blessed: "ending_blessed",
   ending_success: "ending_success",
   ending_secret: "ending_secret",
 } as const;
@@ -53,6 +64,9 @@ const FLAG = {
   forest_riddle_passed: "forest_riddle_passed",
   forest_riddle_failed: "forest_riddle_failed",
   grabbed_egg: "grabbed_egg",
+  // B-014 economy: shrine blessing + thief encounter outcome.
+  blessing: "blessing",
+  robbed: "robbed",
   // Derived (computed in PlayClient from counters; do not set explicitly):
   // food_critical, food_empty, water_critical, water_empty
 } as const;
@@ -272,7 +286,7 @@ const FOREST_PATH: StoryScene = {
     },
   ],
   oracle_hint:
-    "The cliff is faster but only with rope. The river is gentler and has gifts you might need.",
+    "The cliff is faster but only with rope. The river is gentler and has gifts you might need. A small shrine sits off the path, if you wish to leave a coin and ask for kindness.",
   is_side_quest: false,
   choices: [
     {
@@ -289,6 +303,13 @@ const FOREST_PATH: StoryScene = {
       next_scene_id: SCENE.riverbank,
       interactable_kind: "path",
       hint: "longer, but the water sings",
+    },
+    {
+      id: "to_shrine",
+      label: "Visit the small shrine",
+      next_scene_id: SCENE.shrine,
+      interactable_kind: "sparkle",
+      hint: "an old shrine in a clearing; quiet and kind",
     },
   ],
 };
@@ -310,9 +331,9 @@ const CLIFF_CLIMB: StoryScene = {
     {
       id: "climb_to_volcano",
       label: "Pull yourself up",
-      next_scene_id: SCENE.volcano_base,
+      next_scene_id: SCENE.wolf_encounter,
       interactable_kind: "path",
-      hint: "the volcano waits ahead",
+      hint: "a narrow ledge runs above; something moves up there",
     },
     {
       id: "back_to_forest",
@@ -336,7 +357,7 @@ const RIVERBANK: StoryScene = {
   counter_tick: { food: 1 },
   replenish: { water: 6 },
   oracle_hint:
-    "Tap the gourd for a bottle. Tap the fish trap for a meal. The wide river is the way forward; the fallen pine off the trail can be split into wood.",
+    "Tap the gourd for a bottle. Tap the fish trap for a meal. The wide river is the way forward; the fallen pine off the trail can be split into wood. A river fisher may sell supplies, and a pony for hire knows the way around the wide bend.",
   is_side_quest: false,
   choices: [
     {
@@ -359,6 +380,31 @@ const RIVERBANK: StoryScene = {
       next_scene_id: SCENE.forest_path,
       interactable_kind: "path",
       hint: "you can take the cliff route instead",
+    },
+    {
+      id: "to_waterfall_climb",
+      label: "Climb up alongside the falls",
+      next_scene_id: SCENE.waterfall_climb,
+      interactable_kind: "path",
+      requires: ["climbing_rope"],
+      hint: "rope and a steady grip; treasure tucked above",
+    },
+    {
+      id: "fisher_market",
+      label: "Buy supplies from the river fisher (50 coins)",
+      next_scene_id: SCENE.riverbank,
+      interactable_kind: "creature",
+      coin_cost: 50,
+      grants_counter: { food: 4, water: 4 },
+      hint: "the fisher sells fresh fish and clean water",
+    },
+    {
+      id: "river_pony_mount",
+      label: "Pay 200 coins for a river pony",
+      next_scene_id: SCENE.volcano_base,
+      interactable_kind: "creature",
+      coin_cost: 200,
+      hint: "the pony knows the way; she carries you fast around the wide river and the wood you would have chopped",
     },
   ],
 };
@@ -383,7 +429,7 @@ const VOLCANO_BASE: StoryScene = {
     },
   ],
   oracle_hint:
-    "The vent path needs steel. The cave needs light. The ash road costs more food and water but always opens.",
+    "The vent path needs steel. The cave needs light. The ash road costs more food and water but always opens. The bone field off the slope is dangerous, but glints with treasure.",
   is_side_quest: false,
   choices: [
     {
@@ -414,6 +460,13 @@ const VOLCANO_BASE: StoryScene = {
       interactable_kind: "path",
       hint: "you can take the other route this time",
     },
+    {
+      id: "to_bone_field",
+      label: "Search the bone field",
+      next_scene_id: SCENE.bone_field,
+      interactable_kind: "path",
+      hint: "old bones and glinting stones; risky, but rewarding",
+    },
   ],
 };
 
@@ -428,13 +481,13 @@ const ASH_ROAD: StoryScene = {
   pickups: [],
   counter_tick: { food: 2, water: 2 },
   oracle_hint:
-    "Ash is dry. Walk steady. The cavern is closer than it feels.",
+    "Ash is dry. Walk steady. The cavern is closer than it feels. A desert lizard for hire knows the heat. A hooded traveler may want a toll.",
   is_side_quest: false,
   choices: [
     {
       id: "to_dragon",
       label: "Push on to the cavern",
-      next_scene_id: SCENE.dragon_chamber,
+      next_scene_id: SCENE.dragon_cubs,
       interactable_kind: "path",
       hint: "the air cools as you reach the cavern mouth",
     },
@@ -444,6 +497,21 @@ const ASH_ROAD: StoryScene = {
       next_scene_id: SCENE.volcano_base,
       interactable_kind: "path",
       hint: "you can pick a different way up",
+    },
+    {
+      id: "lizard_mount",
+      label: "Pay 200 coins for a desert lizard",
+      next_scene_id: SCENE.dragon_cubs,
+      interactable_kind: "creature",
+      coin_cost: 200,
+      hint: "the lizard runs the heat-cracked road; you arrive in half the time, hot but whole",
+    },
+    {
+      id: "to_thief_encounter",
+      label: "A traveler approaches",
+      next_scene_id: SCENE.thief_encounter,
+      interactable_kind: "creature",
+      hint: "a hooded figure on the road; intentions unclear",
     },
   ],
 };
@@ -464,7 +532,7 @@ const LAVA_CHAMBER: StoryScene = {
     {
       id: "to_dragon",
       label: "Push through to the nest",
-      next_scene_id: SCENE.dragon_chamber,
+      next_scene_id: SCENE.dragon_cubs,
       interactable_kind: "path",
       hint: "you can hear breathing ahead",
     },
@@ -490,13 +558,13 @@ const CAVE_SHORTCUT: StoryScene = {
   counter_tick: { food: 1 },
   replenish: { food: 6 },
   oracle_hint:
-    "The campfire is cold but the rations are good. The scroll under the stone hums an old song. Take it.",
+    "The campfire is cold but the rations are good. The scroll under the stone hums an old song. Take it. A side passage glows faintly with crystals if you have a lantern. The cave hermit will trade for the lullaby, for a price.",
   is_side_quest: false,
   choices: [
     {
       id: "to_dragon",
       label: "Follow the path deeper",
-      next_scene_id: SCENE.dragon_chamber,
+      next_scene_id: SCENE.dragon_cubs,
       interactable_kind: "path",
       hint: "the cave opens ahead",
     },
@@ -506,6 +574,23 @@ const CAVE_SHORTCUT: StoryScene = {
       next_scene_id: SCENE.volcano_base,
       interactable_kind: "path",
       hint: "you can pick a different way up",
+    },
+    {
+      id: "to_crystal_chamber",
+      label: "Explore the crystal passage",
+      next_scene_id: SCENE.crystal_chamber,
+      interactable_kind: "door",
+      requires: ["lantern"],
+      hint: "lantern light shows the way; cool blue glow ahead",
+    },
+    {
+      id: "hermit_market",
+      label: "Trade with the cave hermit for the lullaby (200 coins)",
+      next_scene_id: SCENE.cave_shortcut,
+      interactable_kind: "creature",
+      coin_cost: 200,
+      grants: ["dragons_lullaby"],
+      hint: "the hermit will sing the song into your scroll, for a price",
     },
   ],
 };
@@ -547,6 +632,18 @@ const DRAGON_CHAMBER: StoryScene = {
     {
       when: { riddle_failed: true },
       text: "You answered her question, but the words felt wrong even to you. She watches you closer than before.",
+    },
+    {
+      when: { blessing: true, has_glowstone: true },
+      text: "She watches you. The blessing in your pocket steadies your hands, and the glowstone pulses warmly, and the cavern feels less cold than it should be. The egg pulses softly between her claws.",
+    },
+    {
+      when: { blessing: true },
+      text: "She watches you. Her side is scarred from old battles. The small blessing in your pocket steadies your hands. The egg pulses softly between her claws. She does not move.",
+    },
+    {
+      when: { has_glowstone: true },
+      text: "She watches you. Her side is scarred from old battles. The glowstone in your pocket pulses warmly, and the cavern feels less cold. The egg pulses softly between her claws.",
     },
   ],
   oracle_hint:
@@ -668,6 +765,317 @@ const DRAGON_RIDDLE: StoryScene = {
   ],
 };
 
+// --- B-014 economy expansion scenes ---
+
+// Wolf encounter: blocks the cliff_climb forward path. Three solutions
+// (sword, food bribe, coin bribe) all lead onward to eagle_nest. The
+// kid can also climb back down. Scene-tick costs food regardless of
+// outcome (effort spent on the standoff).
+const WOLF_ENCOUNTER: StoryScene = {
+  id: SCENE.wolf_encounter,
+  title: "The Cliff Wolf",
+  narration:
+    "A gray wolf blocks the narrow ledge ahead. Its yellow eyes track you. Its lip lifts back, just enough to show teeth. It is not yet snarling. It is waiting to see what you will do.",
+  background_id: BG("wolf_encounter"),
+  ambient_audio_prompt: "low wind on stone, distant wolf breath, soft growl",
+  default_props: [],
+  pickups: [],
+  counter_tick: { food: 1 },
+  oracle_hint:
+    "Steel works. So does a meal. Coins jingle and confuse. Climbing back is always allowed.",
+  is_side_quest: false,
+  choices: [
+    {
+      id: "fight_wolf",
+      label: "Fight with your sword",
+      next_scene_id: SCENE.eagle_nest,
+      interactable_kind: "creature",
+      requires: ["sword"],
+      hint: "the wolf yields to a clean strike",
+    },
+    {
+      id: "feed_wolf",
+      label: "Throw it a food ration",
+      next_scene_id: SCENE.eagle_nest,
+      interactable_kind: "creature",
+      requires: ["food_ration"],
+      consumes: ["food_ration"],
+      hint: "the wolf takes the meal and lets you pass",
+    },
+    {
+      id: "bribe_wolf",
+      label: "Toss it 50 coins",
+      next_scene_id: SCENE.eagle_nest,
+      interactable_kind: "creature",
+      coin_cost: 50,
+      hint: "the wolf bats the coins, distracted, and you slip past",
+    },
+    {
+      id: "back_to_cliff",
+      label: "Back down the cliff",
+      next_scene_id: SCENE.cliff_climb,
+      interactable_kind: "path",
+      hint: "you can try the river route instead",
+    },
+  ],
+};
+
+// Waterfall climb: side trip from riverbank. Gated by climbing_rope. The
+// kid finds a treasure_chest pickup (150 coins via the new coin_value
+// pattern). Returns to riverbank.
+const WATERFALL_CLIMB: StoryScene = {
+  id: SCENE.waterfall_climb,
+  title: "Behind the Falls",
+  narration:
+    "You climb up alongside the waterfall. The mist soaks you, the rope holds. At the top, half hidden behind a curtain of moss, sits a small wooden chest, its brass clasps catching what light reaches up here.",
+  background_id: BG("waterfall_climb"),
+  ambient_audio_prompt: "rushing water, soft mist, distant birds",
+  default_props: [],
+  pickups: ["treasure_chest"],
+  counter_tick: { food: 1 },
+  oracle_hint:
+    "Tap the chest to claim it. Then climb back down to the river.",
+  is_side_quest: false,
+  choices: [
+    {
+      id: "back_to_riverbank",
+      label: "Climb back down to the river",
+      next_scene_id: SCENE.riverbank,
+      interactable_kind: "path",
+      hint: "the river bend waits below",
+    },
+  ],
+};
+
+// Eagle nest: slot between wolf_encounter and volcano_base on the cliff
+// path. Pickup is a coin_pouch (50 coins). Three exits: hide quietly,
+// fight (sword), or climb back down.
+const EAGLE_NEST: StoryScene = {
+  id: SCENE.eagle_nest,
+  title: "The Eagle's Nest",
+  narration:
+    "A great eagle's nest perches at the edge of the cliff, woven from sticks twice your height. The eagle is not in it now. Inside, pale eggs nestle next to a glittering pile of coins and shells. The eagle could return at any moment.",
+  background_id: BG("eagle_nest"),
+  ambient_audio_prompt: "high wind, faint distant wing beats, scattered loose stones",
+  default_props: [],
+  pickups: ["coin_pouch"],
+  counter_tick: { food: 1 },
+  oracle_hint:
+    "Tap the pouch first. Then choose: wait the eagle out, draw your sword, or back away.",
+  is_side_quest: false,
+  choices: [
+    {
+      id: "hide_quietly",
+      label: "Hide quietly",
+      next_scene_id: SCENE.volcano_base,
+      interactable_kind: "path",
+      hint: "wait for the eagle to leave; safe but slow",
+    },
+    {
+      id: "fight_eagle",
+      label: "Fight with your sword",
+      next_scene_id: SCENE.volcano_base,
+      interactable_kind: "creature",
+      requires: ["sword"],
+      hint: "the eagle backs off; you press on toward the volcano",
+    },
+    {
+      id: "back_to_cliff",
+      label: "Climb back down",
+      next_scene_id: SCENE.cliff_climb,
+      interactable_kind: "path",
+      hint: "you can pick a different route",
+    },
+  ],
+};
+
+// Bone field: side trip from volcano_base. Pickup is a rare_gem (200
+// coins). Heavy tick (food + water) reflects the dangerous detour. One
+// way out: back to volcano_base.
+const BONE_FIELD: StoryScene = {
+  id: SCENE.bone_field,
+  title: "The Bone Field",
+  narration:
+    "Old skeletons lie half-buried in the ash. Some travelers came this way before you and did not pass. Among the ribs and stones, one bright gemstone catches the light. The rest is silent.",
+  background_id: BG("bone_field"),
+  ambient_audio_prompt: "dry ash wind, faint distant rumble, hollow silence",
+  default_props: [],
+  pickups: ["rare_gem"],
+  counter_tick: { food: 1, water: 1 },
+  oracle_hint: "Tap the gem and step back. The field is no place to linger.",
+  is_side_quest: false,
+  choices: [
+    {
+      id: "back_to_volcano",
+      label: "Step back to the volcano base",
+      next_scene_id: SCENE.volcano_base,
+      interactable_kind: "path",
+      hint: "the path back is short and clear",
+    },
+  ],
+};
+
+// Crystal chamber: side trip from cave_shortcut. Gated by lantern (the
+// inbound choice on cave_shortcut already enforces this). Pickup is the
+// glowstone, which has no coin value but softens the dragon_chamber
+// narration. One way out: back to cave_shortcut.
+const CRYSTAL_CHAMBER: StoryScene = {
+  id: SCENE.crystal_chamber,
+  title: "The Crystal Chamber",
+  narration:
+    "Your lantern catches a thousand crystals along the cave walls. The chamber glows blue and white. In the center, on a small ledge, one stone glows warm amber, steady and gentle, unlike the cool light around it.",
+  background_id: BG("crystal_chamber"),
+  ambient_audio_prompt: "soft humming crystals, faint cave drips, distant warm tone",
+  default_props: [],
+  pickups: ["glowstone"],
+  counter_tick: { food: 1 },
+  oracle_hint:
+    "Tap the warm stone. Slip it into your pocket. The dragon may notice the difference.",
+  is_side_quest: false,
+  choices: [
+    {
+      id: "back_to_cave",
+      label: "Return to the cave",
+      next_scene_id: SCENE.cave_shortcut,
+      interactable_kind: "path",
+      hint: "the camp and rations wait outside",
+    },
+  ],
+};
+
+// Dragon cubs: convergence scene that all three forward paths feed into
+// (lava_chamber, cave_shortcut, ash_road). Three forward solutions
+// (sneak, food, coins) lead to dragon_chamber; the kid can also turn
+// back to volcano_base for another route. No counter tick: the cubs
+// move fast and the moment is short.
+const DRAGON_CUBS: StoryScene = {
+  id: SCENE.dragon_cubs,
+  title: "The Cubs' Antechamber",
+  narration:
+    "Two small dragon cubs tumble in a rocky antechamber outside the larger cavern. They are playful, but already big. Their teeth are little, but sharp. They have not noticed you yet.",
+  background_id: BG("dragon_cubs"),
+  ambient_audio_prompt: "playful dragon chirps, scratching claws on stone, distant breath",
+  default_props: [],
+  pickups: [],
+  oracle_hint:
+    "Slip past, share a meal, or scatter a few coins. Or step back to find another way.",
+  is_side_quest: false,
+  choices: [
+    {
+      id: "sneak_past",
+      label: "Sneak past quietly",
+      next_scene_id: SCENE.dragon_chamber,
+      interactable_kind: "path",
+      hint: "stay low, hold your breath",
+    },
+    {
+      id: "feed_cubs",
+      label: "Distract them with food",
+      next_scene_id: SCENE.dragon_chamber,
+      interactable_kind: "creature",
+      requires: ["food_ration"],
+      consumes: ["food_ration"],
+      hint: "the cubs forget you, focused on the meal",
+    },
+    {
+      id: "bribe_cubs",
+      label: "Toss them 50 coins to chase",
+      next_scene_id: SCENE.dragon_chamber,
+      interactable_kind: "creature",
+      coin_cost: 50,
+      hint: "the cubs scatter to chase the shiny coins",
+    },
+    {
+      id: "back_to_volcano",
+      label: "Turn back to the volcano",
+      next_scene_id: SCENE.volcano_base,
+      interactable_kind: "path",
+      hint: "another path waits up the slope",
+    },
+  ],
+};
+
+// Shrine: optional side trip from forest_path. Coin sink that grants the
+// blessing flag, which softens dragon_chamber narration and unlocks the
+// ending_blessed branch. No counter tick: a quick stop, kindness only.
+const SHRINE: StoryScene = {
+  id: SCENE.shrine,
+  title: "The Small Shrine",
+  narration:
+    "A small ancient shrine sits in a clearing off the path. Mossy carvings cover its stones. A shallow bowl in the center waits, empty. Old candles flicker, untended but not gone out.",
+  background_id: BG("shrine"),
+  ambient_audio_prompt: "soft wind, distant chimes, faint candle hush",
+  default_props: [],
+  pickups: [],
+  oracle_hint:
+    "Leave a coin in the bowl, or pass through quietly. Both are answers.",
+  is_side_quest: false,
+  choices: [
+    {
+      id: "shrine_offer",
+      label: "Speak to the shrine, leave 50 coins",
+      next_scene_id: SCENE.forest_path,
+      interactable_kind: "sparkle",
+      coin_cost: 50,
+      sets_flag: FLAG.blessing,
+      hint: "the shrine glows; you feel watched over",
+    },
+    {
+      id: "shrine_leave",
+      label: "Leave the shrine without paying",
+      next_scene_id: SCENE.forest_path,
+      interactable_kind: "path",
+      hint: "the carved stones watch you go",
+    },
+  ],
+};
+
+// Thief encounter: reachable from ash_road. Three outcomes: pay the
+// toll, fight (sword), or run and lose all coins. All three return to
+// ash_road. Tick costs one food regardless. Robbed flag is reserved for
+// future endings; not used today.
+const THIEF_ENCOUNTER: StoryScene = {
+  id: SCENE.thief_encounter,
+  title: "The Toll Road",
+  narration:
+    "A hooded traveler steps onto the road. You cannot see their face. Their hand rests easy on a curved knife at their hip. \"This stretch of road has a toll, friend. Cross with kindness, or cross another way.\"",
+  background_id: BG("thief_encounter"),
+  ambient_audio_prompt: "dry hot wind, soft ash drift, low quiet breath",
+  default_props: [],
+  pickups: [],
+  counter_tick: { food: 1 },
+  oracle_hint:
+    "Pay the toll. Fight back. Or run and lose your purse. Three honest choices, none easy.",
+  is_side_quest: false,
+  choices: [
+    {
+      id: "pay_toll",
+      label: "Pay the toll, 100 coins",
+      next_scene_id: SCENE.ash_road,
+      interactable_kind: "creature",
+      coin_cost: 100,
+      hint: "the traveler nods, lets you pass",
+    },
+    {
+      id: "fight_thief",
+      label: "Fight back with your sword",
+      next_scene_id: SCENE.ash_road,
+      interactable_kind: "creature",
+      requires: ["sword"],
+      hint: "the traveler flees",
+    },
+    {
+      id: "run_dropped_purse",
+      label: "Run, drop your purse",
+      next_scene_id: SCENE.ash_road,
+      interactable_kind: "path",
+      sets_flag: FLAG.robbed,
+      consumes_counter: { coins: 9999 },
+      hint: "you escape but lose everything in your pouch",
+    },
+  ],
+};
+
 // --- endings (each is a real scene with empty choices) ---
 
 const ENDING_STARVATION: StoryScene = {
@@ -748,6 +1156,24 @@ const ENDING_APPEASED: StoryScene = {
   choices: [],
 };
 
+// B-014 economy: blessed ending unlocked when the kid left a coin at the
+// shrine and grabbed the egg. Sits between Friend and Charmed in tier.
+// Reuses ending_appeased.webp as background; no new image required, but
+// Vanessa can rerun the generator with a unique prompt later if she wants
+// art parity with the other endings.
+const ENDING_BLESSED: StoryScene = {
+  id: SCENE.ending_blessed,
+  title: "Watched Over",
+  narration:
+    "You walked the road with luck on your side. The shrine you visited stayed warm in your pocket all the way. The egg came home gentle, the dragon stayed her ground, and the wards renewed themselves at first touch. The realm felt watched over from the very first step.",
+  background_id: BG("ending_appeased"),
+  ambient_audio_prompt: "warm wind, faint chimes, soft golden hush",
+  default_props: [],
+  pickups: [],
+  is_side_quest: false,
+  choices: [],
+};
+
 const ENDING_SUCCESS: StoryScene = {
   id: SCENE.ending_success,
   title: "Run, Wizard",
@@ -796,12 +1222,21 @@ const STORY: StoryTree = {
     SONG_QUEST,
     DRAGON_CHAMBER,
     DRAGON_RIDDLE,
+    WOLF_ENCOUNTER,
+    WATERFALL_CLIMB,
+    EAGLE_NEST,
+    BONE_FIELD,
+    CRYSTAL_CHAMBER,
+    DRAGON_CUBS,
+    SHRINE,
+    THIEF_ENCOUNTER,
     ENDING_STARVATION,
     ENDING_DEHYDRATION,
     ENDING_LOST,
     ENDING_FRIEND,
     ENDING_CHARMED,
     ENDING_APPEASED,
+    ENDING_BLESSED,
     ENDING_SUCCESS,
   ],
   secret_ending: ENDING_SECRET,
@@ -813,6 +1248,8 @@ const STORY: StoryTree = {
     { id: FLAG.forest_riddle_passed, description: "answered the old oak's riddle correctly" },
     { id: FLAG.forest_riddle_failed, description: "missed the old oak's riddle" },
     { id: FLAG.grabbed_egg, description: "took the dragon's egg" },
+    { id: FLAG.blessing, description: "left a coin at the shrine" },
+    { id: FLAG.robbed, description: "ran from the toll road and lost everything" },
   ],
   endings: [
     { scene_id: SCENE.ending_starvation, requires: { food_empty: true } },
@@ -820,6 +1257,10 @@ const STORY: StoryTree = {
     {
       scene_id: SCENE.ending_friend,
       requires: { [FLAG.tended_wound]: true, [FLAG.sang_lullaby]: true },
+    },
+    {
+      scene_id: SCENE.ending_blessed,
+      requires: { [FLAG.blessing]: true, [FLAG.grabbed_egg]: true },
     },
     { scene_id: SCENE.ending_charmed, requires: { [FLAG.sang_lullaby]: true } },
     { scene_id: SCENE.ending_appeased, requires: { [FLAG.tended_wound]: true } },

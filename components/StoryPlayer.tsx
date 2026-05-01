@@ -209,9 +209,17 @@ export function StoryPlayer({
     if (!counters || !counterDefs || counterDefs.length === 0) return {};
     return deriveCounterFlags(counters, counterDefs);
   }, [counters, counterDefs]);
+  // B-014: narration / background variants can key on inventory by checking
+  // `has_<pickup_id>`. Keeps the FlagState shape unchanged (booleans only)
+  // and lets the dragon_chamber soften when a glowstone is in pocket.
+  const inventoryFlags = useMemo(() => {
+    const out: Record<string, boolean> = {};
+    for (const id of inventory) out[`has_${id}`] = true;
+    return out;
+  }, [inventory]);
   const mergedFlags = useMemo(
-    () => ({ ...flags, ...derivedFlags }),
-    [flags, derivedFlags]
+    () => ({ ...flags, ...derivedFlags, ...inventoryFlags }),
+    [flags, derivedFlags, inventoryFlags]
   );
   // Adventure slice: pick the right background_id for the current flag
   // state. Falls through to the scene's base id when no variant matches.

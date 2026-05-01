@@ -1463,6 +1463,19 @@ const STORY: StoryTree = {
       critical_at: 0,
       start_at: 50,
     },
+    // B-020 adventurer XP. +10 each time the kid clears a gated choice
+    // (requires / requires_any / coin_cost). critical_at: -1 disables the
+    // red-pulse styling; the counter only goes up. start_at: 0 because
+    // the kid earns it during the run. CounterBar's text-display branch
+    // (max > 50) renders this as "XP: N".
+    {
+      id: "adventurer_xp",
+      label: "XP",
+      max: 9999,
+      icon_path: "/pickups/tarnished_medallion.webp",
+      critical_at: -1,
+      start_at: 0,
+    },
   ],
   starter_choices: {
     candidates: ["climbing_rope", "sword", "water_bottle", "food_ration", "lantern"],

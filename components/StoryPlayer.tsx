@@ -838,6 +838,11 @@ export function StoryPlayer({
     // order. Deduct first, then add. Single onCountersChange call so the
     // UI sees one transition instead of three. Ching fires once if any
     // coin movement happened.
+    // B-020: any gated choice (`requires`, `requires_any`, or `coin_cost`)
+    // also grants +10 adventurer XP via the same path. Free choices stay
+    // free; building items in the Skills panel uses its own builder XP.
+    const wasGated =
+      required.length > 0 || requiresAny.length > 0 || coinCost > 0;
     let countersTouched = false;
     let coinsMoved = false;
     if (counters && counterDefs && onCountersChange) {
@@ -868,6 +873,17 @@ export function StoryPlayer({
           if (id === "coins") coinsMoved = true;
         }
         nextCounters = updated;
+        countersTouched = true;
+      }
+      if (wasGated && maxById.has("adventurer_xp")) {
+        const max = maxById.get("adventurer_xp") ?? Infinity;
+        nextCounters = {
+          ...nextCounters,
+          adventurer_xp: Math.min(
+            max,
+            (nextCounters.adventurer_xp ?? 0) + 10
+          ),
+        };
         countersTouched = true;
       }
       if (countersTouched) onCountersChange(nextCounters);

@@ -10,6 +10,7 @@ import type { AchievementDef } from "@/lib/achievements-types";
 import type { RarityInputs } from "@/lib/rarity";
 import { SceneEditor, type EditorSnapshot } from "@/components/SceneEditor";
 import { StoryPlayer, type EconomySummary, type GameplayEvent } from "@/components/StoryPlayer";
+import { MapOverlay } from "@/components/MapOverlay";
 import { SaveYourWorldsModal } from "@/components/SaveYourWorldsModal";
 import { AchievementToast } from "@/components/AchievementToast";
 import { OraclePrologue } from "@/components/OraclePrologue";
@@ -95,6 +96,7 @@ export function PlayClient({
     rarityInputs: RarityInputs;
     flagSuffix: string | null;
     economy?: EconomySummary;
+    scenesVisited: string[];
   } | null>(null);
   const [toastQueue, setToastQueue] = useState<AchievementDef[]>(initialUnlocked);
   const flagsKey = `realm-shapers:flags:${worldId}`;
@@ -331,8 +333,11 @@ export function PlayClient({
       rarityInputs,
       flagSuffix: flagTitleSuffix(flags),
       economy: payload.economy,
+      scenesVisited: payload.scenesVisited,
     });
   }
+
+  const [completionMapOpen, setCompletionMapOpen] = useState(false);
 
   function handleExitPlay() {
     setMode("edit");
@@ -659,6 +664,13 @@ export function PlayClient({
                 >
                   Play again
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setCompletionMapOpen(true)}
+                  className="px-4 py-3 rounded-xl bg-sky-100 text-sky-900 font-semibold hover:bg-sky-200"
+                >
+                  🗺 View map
+                </button>
                 {!isAdventure && (
                   <button
                     type="button"
@@ -701,6 +713,15 @@ export function PlayClient({
       <SaveYourWorldsModal open={showSave} onClose={() => setShowSave(false)} />
 
       <AchievementToast queue={toastQueue} onConsume={consumeToast} />
+
+      {completion && completionMapOpen && (
+        <MapOverlay
+          story={story}
+          currentSceneId={completion.endingScene.id}
+          visited={new Set(completion.scenesVisited)}
+          onClose={() => setCompletionMapOpen(false)}
+        />
+      )}
     </main>
   );
 }

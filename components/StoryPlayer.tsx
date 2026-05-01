@@ -1444,20 +1444,20 @@ export function StoryPlayer({
         />
       </div>
 
-      {/* B-017: narration block right-aligned and shrunk so the bottom-left
-          half of the scene stays clear for the glowing pickup. Caps lines
-          via line-clamp-3 with overflow visible on hover/scroll. */}
-      <div className="relative mt-auto mb-20 sm:mb-24 p-4 sm:p-6 flex flex-col gap-3 max-w-md ml-auto w-full sm:pr-6">
+      {/* Narration block lives at top-center so pickup glows in the lower
+          two-thirds of the scene stay clear. pointer-events-none on the
+          wrapper lets taps pass through to anything behind the band. */}
+      <div className="absolute top-16 sm:top-4 left-1/2 -translate-x-1/2 z-[5] flex flex-col gap-2 w-[min(70vw,28rem)] pointer-events-none">
         <AnimatePresence mode="wait">
           <motion.div
             key={`${scene.id}-narration`}
-            initial={{ y: 20, opacity: 0 }}
+            initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -10, opacity: 0 }}
+            exit={{ y: 10, opacity: 0 }}
             transition={{ duration: 0.4 }}
-            className="bg-white/95 rounded-2xl shadow-xl p-3 sm:p-4 text-right"
+            className="bg-white/95 rounded-2xl shadow-xl p-3 sm:p-4 text-center"
           >
-            <div className="flex items-center gap-2 mb-1 flex-wrap justify-end">
+            <div className="flex items-center gap-2 mb-1 flex-wrap justify-center">
               {isSideQuestScene && (
                 <span
                   className="text-[10px] sm:text-xs uppercase tracking-widest font-bold rounded-full px-2 py-0.5 bg-gradient-to-r from-fuchsia-200 to-purple-200 text-purple-900 border border-fuchsia-300"
@@ -1473,15 +1473,15 @@ export function StoryPlayer({
         </AnimatePresence>
 
         {isChoiceScene ? (
-          <p className="text-right text-amber-50/85 text-xs">
+          <p className="text-center text-amber-50/85 text-xs">
             A moment of choice. Pick a path.
           </p>
         ) : !isEnding ? (
-          <p className="text-right text-amber-50/85 text-xs">
+          <p className="text-center text-amber-50/85 text-xs">
             Tap a glowing thing. {scene.choices.length} ways forward.
           </p>
         ) : (
-          <p className="text-right text-amber-50/85 text-xs">
+          <p className="text-center text-amber-50/85 text-xs">
             The realm rests. The Oracle has prepared a card.
           </p>
         )}

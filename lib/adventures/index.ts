@@ -98,6 +98,13 @@ function validateAdventure(adventure: Adventure): void {
           );
         }
       }
+      for (const r of choice.hide_when_inventory_has ?? []) {
+        if (!validPickupIds(r)) {
+          throw new Error(
+            `adventure ${id}: scene ${scene.id} choice ${choice.id} hide_when_inventory_has unknown pickup ${r}`
+          );
+        }
+      }
       for (const c of choice.consumes ?? []) {
         if (!validPickupIds(c)) {
           throw new Error(

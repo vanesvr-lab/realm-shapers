@@ -1292,7 +1292,19 @@ export function StoryPlayer({
 
             {/* Choices: clickable scene-advance interactables */}
             {!isEnding && !isChoiceScene &&
-              scene.choices.map((choice, i) => {
+              scene.choices
+                // B-020: drop choices that have been superseded by a built
+                // pickup the kid already crafted (e.g., the raw-wood raft
+                // hides once built_raft is in inventory). Hide is render
+                // only; tryActivate would still accept the choice if
+                // surfaced via other UI.
+                .filter(
+                  (choice) =>
+                    !(choice.hide_when_inventory_has ?? []).some((id) =>
+                      inventory.includes(id)
+                    )
+                )
+                .map((choice, i) => {
                 const required = choice.requires ?? [];
                 const missing = required.filter((r) => !inventory.includes(r));
                 const requiresAny = choice.requires_any ?? [];

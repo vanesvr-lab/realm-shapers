@@ -189,6 +189,7 @@ const RIVER_CROSSING: StoryScene = {
       next_scene_id: SCENE.volcano_base,
       interactable_kind: "path",
       requires: ["wood_logs", "climbing_rope"],
+      hide_when_inventory_has: ["built_raft"],
       hint: "lash logs to rope; ride the current across",
       oracle_hint:
         "Rafts ask for two things: wood from the fallen pine off the trail, and rope from where the river bends.",
@@ -332,6 +333,7 @@ const FOREST_PATH: StoryScene = {
       next_scene_id: SCENE.cliff_climb,
       interactable_kind: "path",
       requires: ["climbing_rope"],
+      hide_when_inventory_has: ["built_ladder"],
       hint: "shortcut, but you will need the rope",
       oracle_hint:
         "Coils of rope sometimes wash up where the river bends. Listen for the water and walk that way.",
@@ -725,6 +727,7 @@ const DRAGON_CHAMBER: StoryScene = {
       next_scene_id: SCENE.dragon_chamber,
       interactable_kind: "creature",
       requires: ["dragons_lullaby"],
+      hide_when_inventory_has: ["built_music_box"],
       sets_flag: FLAG.sang_lullaby,
       hint: "the old song might soothe her",
       oracle_hint:

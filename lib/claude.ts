@@ -96,6 +96,13 @@ export type StoryChoice = {
   // built_music_box. Coexists with `requires` (which is still all-or-
   // nothing). Optional; absent on every pre-B-019 choice.
   requires_any?: string[];
+  // B-020: hide this choice entirely from the scene when ANY of the
+  // listed pickup ids is in inventory. Used to clean up the choice list
+  // once the kid has crafted a built equivalent (built_raft, built_ladder,
+  // built_music_box) so the older raw-material path no longer competes
+  // for tap-target real estate. Hide is a render-only filter; it does
+  // not change validity or block the choice if surfaced via other UI.
+  hide_when_inventory_has?: string[];
   // B-010 scope 8: one-sentence flavor hint shown when the kid first taps
   // this choice. Tone, not spoiler ("this path looks calm and quiet" not
   // "this path leads to the secret ending"). Optional for back-compat with

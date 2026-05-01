@@ -19,8 +19,8 @@ const SCENE_STYLE_SUFFIX =
 // flips entries to .png as real Replicate-generated images land on disk.
 import { ASSET_FILE_EXTENSIONS } from "./asset-files.generated";
 
-function ext(id: string): "svg" | "png" {
-  return (ASSET_FILE_EXTENSIONS as Record<string, "svg" | "png">)[id] ?? "svg";
+function ext(id: string): "svg" | "png" | "webp" {
+  return ASSET_FILE_EXTENSIONS[id] ?? "svg";
 }
 
 function bg(id: string, alt: string, prompt: string, tags: string[] = []): AssetDef {

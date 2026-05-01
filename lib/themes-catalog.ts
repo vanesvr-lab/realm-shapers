@@ -30,6 +30,9 @@ export type SubScene = {
   connects_to: string[];
   can_be_entry: boolean;
   can_be_ending: boolean;
+  // B-013 pilot: optional entry video that plays once on first scene entry
+  // per (world_id, scene_id), then crossfades to file_path. Drawbridge only.
+  entry_video_path?: string;
 };
 
 export type Theme = {
@@ -46,10 +49,14 @@ const castleSubScenes: SubScene[] = [
     theme: "castle",
     label: "Drawbridge",
     description: "wooden bridge over a moat, chains taut, gulls overhead",
-    file_path: "/backgrounds/castle/drawbridge.svg",
+    file_path: "/backgrounds/castle/drawbridge.webp",
     connects_to: ["castle_outer_gate", "castle_secret_passage"],
     can_be_entry: true,
     can_be_ending: false,
+    // B-013 pilot. Generated via Replicate kwaivgi/kling-v1.6-pro on the
+    // drawbridge.webp starting frame. Plays once per (world_id, scene_id) in
+    // sessionStorage; tap-to-skip; 200ms crossfade to file_path on end.
+    entry_video_path: "/backgrounds/castle/drawbridge_entry.mp4",
   },
   {
     id: "castle_outer_gate",

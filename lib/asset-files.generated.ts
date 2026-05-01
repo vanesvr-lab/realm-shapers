@@ -2,7 +2,7 @@
 // Maps asset id to the file extension actually present on disk.
 // Keep in sync after generating real PNGs.
 
-export const ASSET_FILE_EXTENSIONS: Record<string, "svg" | "png"> = {
+export const ASSET_FILE_EXTENSIONS: Record<string, "svg" | "png" | "webp"> = {
   "forest": "png",
   "beach": "png",
   "underwater": "png",
@@ -22,7 +22,7 @@ export const ASSET_FILE_EXTENSIONS: Record<string, "svg" | "png"> = {
   "hero_boy": "png",
   "dragon": "png",
   "robot": "png",
-  "wizard": "png",
+  "wizard": "webp",
   "knight": "png",
   "princess": "png",
   "alien": "png",

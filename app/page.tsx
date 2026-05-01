@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { serverSupabase } from "@/lib/supabase-server";
 import { LandingForm } from "@/components/LandingForm";
-import { StylePicker } from "@/components/StylePicker";
 import { OracleSpeaks } from "@/components/OracleSpeaks";
 
 export default async function Home() {
@@ -26,7 +25,6 @@ export default async function Home() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-rose-50">
-      <StylePicker />
       {username ? (
         <OracleSpeaks
           text={`Welcome back, ${username}. Ready to shape another realm?`}
